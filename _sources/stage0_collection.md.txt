@@ -1,0 +1,154 @@
+# Stage 0 — DAgger collection (limb)
+
+Collect rollouts where a served pi0.5 (Stage 2) or pi0.6 (Stage 3 / 6)
+policy drives the YAM autonomously and the operator intervenes via
+bilateral teleop. Every frame is timestamped and tagged with the
+current phase (`autonomous` / `paused` / `correcting`) and per-episode
+success/failure.
+
+## Prerequisites
+
+- A served policy on `0.0.0.0:8111` (see [Stage 2](stage2_sft.md) /
+  [Stage 6](stage6_recap.md) for serving commands).
+- All four YAM arms initialized cleanly (per the
+  [setup diagnostics](setup.md#verify-everything-is-wired)).
+- The iKKEGOL pedal connected and `pgrep -fa multiprocessing` showing no
+  leftover orphans from a prior crashed run (CAN devices can't be shared
+  across processes).
+
+## The command
+
+```bash
+cd ~/limb
+source .venv/bin/activate
+uv run limb record --config-path \
+  configs/yam_dagger_pi0_bimanual.yaml \
+  configs/dagger_collection.yaml
+```
+
+Two YAML overlays:
+
+- `configs/yam_dagger_pi0_bimanual.yaml` — DAgger agent (phase machine
+  wrapping the pi0.x policy, bilateral teleop in CORRECTING) + 4-arm
+  robot config + 3 RealSense cameras.
+- `configs/dagger_collection.yaml` — Recording session (continuous
+  per-frame recording, keyboard trigger for the episode lifecycle,
+  `num_episodes: 100`, `episode_duration_s: 200`).
+
+## Phase machine (foot pedal)
+
+The DAgger agent has three phases, transitioned by the **pedal**:
+
+```text
+              left pedal              right pedal
+   AUTONOMOUS <───────────> PAUSED <───────────> CORRECTING
+   (policy drives)           (everyone holds)    (operator drives
+                                                  via leaders;
+                                                  followers track)
+```
+
+You **cannot** go AUTONOMOUS↔CORRECTING directly — always through
+PAUSED. This guarantees the operator is positioned before control
+changes hands.
+
+| Pedal     | Effect (from current phase)                                       |
+|-----------|-------------------------------------------------------------------|
+| Left      | `AUTONOMOUS` ↔ `PAUSED`                                            |
+| Right     | `PAUSED` ↔ `CORRECTING`                                            |
+
+The agent boots in `initial_phase: paused` so the policy doesn't start
+moving the moment the stack launches.
+
+## Episode lifecycle (keyboard)
+
+A separate **keyboard** trigger drives the recording session — episode
+start / save / discard. This avoids contention with the pedal (the
+pedal trigger grabs the iKKEGOL exclusively).
+
+| Key       | Effect                                                                          |
+|-----------|---------------------------------------------------------------------------------|
+| `SPACE` (between episodes) | start the next episode (recording begins)                          |
+| `s`                        | end the current episode, save with `SUCCESS` marker               |
+| `SPACE` (during episode)   | end the current episode, save with `FAILURE` marker (policy missed) |
+| `d`                        | discard the current episode (delete from disk)                    |
+| `q`                        | quit the session                                                  |
+
+A typical episode:
+
+1. (Between episodes) — stage the scene; **`SPACE`** to start recording.
+2. Robot is in PAUSED → optionally **right pedal** → CORRECTING, drive
+   followers to the start pose via the leaders, **right pedal** back to
+   PAUSED.
+3. **Left pedal** → AUTONOMOUS; policy attempts the task.
+4. If it drifts: **left pedal** (PAUSED) → **right pedal** (CORRECTING),
+   bilaterally teleop back on-task, **right pedal** (PAUSED) → **left
+   pedal** (AUTONOMOUS).
+5. **`s`** if the policy completed the task, **`SPACE`** if it failed.
+
+## What gets recorded
+
+Per episode under `recordings/<task>_<ts>/episode_<...>/`:
+
+| File                                    | What it is                                                |
+|-----------------------------------------|-----------------------------------------------------------|
+| `{arm}_actions.npz` (`pos`)             | commanded action that frame (operator's during CORRECTING)|
+| `{arm}_states.npz`                      | observed state (joints + gripper)                         |
+| `{arm}_policy_actions.npz` (`pos`)      | what the **policy** would have produced (shadow stream)   |
+| `{cam}.mp4` + `{cam}_timestamps.npy`    | per-camera video + timestamps                             |
+| `phase.npy`                             | per-tick phase string (`autonomous`/`paused`/`correcting`) |
+| `interventions.npy`                     | per-tick `intervention` bool (legacy column)              |
+| `correction_index.npy`                  | per-tick id grouping consecutive CORRECTING frames        |
+| `timestamps.npy`                        | per-tick control-loop timestamp                           |
+| `SUCCESS` or `FAILURE`                  | the marker you wrote with `s` / `SPACE`                   |
+| `metadata.json`                         | task instruction, arm names, cameras, etc.                |
+
+`policy_action` (the policy's shadow output even during CORRECTING) is
+the key new stream needed for RECAP — see
+[Stage 1](stage1_conversion.md) for how it gets surfaced.
+
+## Hygiene rules
+
+1. **Keep both success and failure episodes.** RECAP's value model
+   needs both classes to converge. ~30–60% success is a healthy band
+   for productive correction collection. We've observed ~30% in
+   practice on small datasets.
+2. **One task instruction per session.** Pistar's value model and
+   percentile labeling are per-task; mixing breaks the percentile.
+3. **Label honestly.** The `SUCCESS`/`FAILURE` marker drives
+   `reward`, `value_label`, and downstream advantage signs. A mislabeled
+   episode poisons the value model directly.
+4. **Don't filter "boring" autonomous successes out.** Stage 5 will
+   classify those frames as `positive` for free — they're useful
+   training signal.
+
+## Scale guidance (from the pi0.6 paper)
+
+The π★₀.₆ paper, Appendix A-F, reports per-task collection counts.
+There is no scaling curve and no explicit "enough" criterion; what they
+actually did:
+
+| Task              | Demos | Autonomous | **Correction episodes** | Iterations |
+|-------------------|-------|------------|-------------------------|------------|
+| Laundry (diverse) | —     | 450        | **287**                 | one set    |
+| Espresso / café   | —     | 414        | **429**                 | per iter   |
+| Box assembly      | 600   | —          | **360**                 | × 2 iters  |
+
+For a small-scale smoke test the [Stage 3 LoRA path](stage3_lora.md)
+runs on ~10 episodes; for genuine RECAP improvement at paper scale aim
+for **~300 correction episodes per iteration**.
+
+A practical stopping signal: when the latest batch of episodes shows
+**intervention rate < 10%** (the policy is succeeding on its own), stop
+collecting and start a new iteration.
+
+## Reference dataset
+
+The reference dataset shipped with this site is at
+`datasets/vial_rollout_v1_v21/` (10 episodes, 21,286 frames @ 30 fps,
+3 SUCCESS / 7 FAILURE, 32.7% intervention rate). It's enough to
+validate the full pipeline; it is **not** enough to produce a
+RECAP-improved policy.
+
+## Next
+
+Convert the raw episodes → [Stage 1](stage1_conversion.md).

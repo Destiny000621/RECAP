@@ -1,0 +1,687 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Patches reference — making pistar Stage 4 / 5 actually run &mdash; RECAP on YAM</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+      <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=2709fde1"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="_static/copybutton.js?v=e679931d"></script>
+      <script src="_static/design-tabs.js?v=f930bc37"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="Evaluation — Serve + deploy via limb" href="evaluation.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            RECAP on YAM
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Pipeline stages</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="overview.html">Overview</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="overview.html#what-recap-is">What RECAP is</a></li>
+<li class="toctree-l2"><a class="reference internal" href="overview.html#the-six-stages">The six stages</a></li>
+<li class="toctree-l2"><a class="reference internal" href="overview.html#how-our-pipeline-differs-from-rlinf-and-evo-rl">How our pipeline differs from RLinf and Evo-RL</a></li>
+<li class="toctree-l2"><a class="reference internal" href="overview.html#architecture-at-a-glance">Architecture at a glance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="overview.html#when-to-use-which-checkpoint">When to use which checkpoint</a></li>
+<li class="toctree-l2"><a class="reference internal" href="overview.html#yam-trainconfig-reference">YAM TrainConfig reference</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="overview.html#picking-one">Picking one</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="setup.html">Setup</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="setup.html#repositories">Repositories</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="setup.html#clone">Clone</a></li>
+<li class="toctree-l3"><a class="reference internal" href="setup.html#patches-you-must-apply-to-pistar">Patches you must apply to pistar</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="setup.html#python-environments">Python environments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="setup.html#vlm-checkpoint-for-stage-4">VLM checkpoint (for Stage 4)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="setup.html#pi0-5-base-weights-for-stage-2-sft">pi0.5 base weights (for Stage 2 SFT)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="setup.html#hardware">Hardware</a></li>
+<li class="toctree-l2"><a class="reference internal" href="setup.html#verify-everything-is-wired">Verify everything is wired</a></li>
+<li class="toctree-l2"><a class="reference internal" href="setup.html#next">Next</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="stage0_collection.html">Stage 0 — DAgger collection (limb)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="stage0_collection.html#prerequisites">Prerequisites</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage0_collection.html#the-command">The command</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage0_collection.html#phase-machine-foot-pedal">Phase machine (foot pedal)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage0_collection.html#episode-lifecycle-keyboard">Episode lifecycle (keyboard)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage0_collection.html#what-gets-recorded">What gets recorded</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage0_collection.html#hygiene-rules">Hygiene rules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage0_collection.html#scale-guidance-from-the-pi0-6-paper">Scale guidance (from the pi0.6 paper)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage0_collection.html#reference-dataset">Reference dataset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage0_collection.html#next">Next</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="stage1_conversion.html">Stage 1 — Convert to LeRobot v2.1 with five RECAP columns</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="stage1_conversion.html#the-five-recap-columns">The five RECAP columns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage1_conversion.html#command">Command</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="stage1_conversion.html#flags-that-matter-for-pi0-6">Flags that matter for pi0.6</a></li>
+<li class="toctree-l3"><a class="reference internal" href="stage1_conversion.html#sft-demo-variant">SFT demo variant</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="stage1_conversion.html#verify-the-conversion">Verify the conversion</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage1_conversion.html#why-two-converters">Why two converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage1_conversion.html#symlink-into-pistars-lerobot-cache">Symlink into pistar’s lerobot cache</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage1_conversion.html#next">Next</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="stage2_sft.html">Stage 2 — Initial SFT (openpi, full fine-tune)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="stage2_sft.html#required-inputs">Required inputs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage2_sft.html#add-a-yam-trainconfig-to-openpi">Add a YAM <code class="docutils literal notranslate"><span class="pre">TrainConfig</span></code> to openpi</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage2_sft.html#compute-norm-stats-25-min-one-time">Compute norm stats (~25 min, one-time)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage2_sft.html#train-full-fine-tune-3-h-on-8-h100">Train (full fine-tune, ~3 h on 8× H100)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage2_sft.html#push-to-huggingface-recommended">Push to HuggingFace (recommended)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage2_sft.html#stage-3-stage-6-input-what-they-need-from-here">Stage 3 / Stage 6 input — what they need from here</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage2_sft.html#gotchas-from-openpi-yam-finetune-md">Gotchas (from openpi <code class="docutils literal notranslate"><span class="pre">yam_finetune.md</span></code>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage2_sft.html#next">Next</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="stage3_lora.html">Stage 3 — pi0.6 fine-tune from SFT (no VLM yet)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="stage3_lora.html#what-the-configs-look-like">What the configs look like</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage3_lora.html#train">Train</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage3_lora.html#lora-variant">LoRA variant</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage3_lora.html#what-this-gives-you-what-it-doesnt">What this gives you, what it doesn’t</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage3_lora.html#next">Next</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="stage4_value.html">Stage 4 — VLM value model training (pistar, patched)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="stage4_value.html#required-inputs">Required inputs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage4_value.html#quick-smoke-test-5-steps-30-s">Quick smoke test (5 steps, ~30 s)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage4_value.html#real-training-run">Real training run</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage4_value.html#tuning-knobs">Tuning knobs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage4_value.html#what-the-saved-checkpoint-contains">What the saved checkpoint contains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage4_value.html#healthy-training-signals">Healthy training signals</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage4_value.html#common-failures">Common failures</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage4_value.html#next">Next</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="stage5_advantage.html">Stage 5 — Advantage labeling (VLM relabel of <code class="docutils literal notranslate"><span class="pre">adv_ind</span></code>)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="stage5_advantage.html#make-a-standalone-copy-of-the-dataset">Make a standalone copy of the dataset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage5_advantage.html#what-it-does">What it does</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage5_advantage.html#command">Command</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="stage5_advantage.html#flag-explanations">Flag explanations</a></li>
+<li class="toctree-l3"><a class="reference internal" href="stage5_advantage.html#tuning">Tuning</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="stage5_advantage.html#verify-the-relabel">Verify the relabel</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage5_advantage.html#operating-principle-intuition">Operating principle (intuition)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage5_advantage.html#next">Next</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="stage6_recap.html">Stage 6 — Full RECAP fine-tune</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="stage6_recap.html#inputs">Inputs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage6_recap.html#the-recap-trainconfig">The <code class="docutils literal notranslate"><span class="pre">_recap</span></code> TrainConfig</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage6_recap.html#command">Command</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="stage6_recap.html#how-to-verify-at-runtime-that-the-vlm-labeled-dataset-is-loading">How to verify at runtime that the VLM-labeled dataset is loading</a></li>
+<li class="toctree-l3"><a class="reference internal" href="stage6_recap.html#continue-from-a-stage-3-checkpoint-instead-of-the-sft">Continue from a Stage 3 checkpoint instead of the SFT</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="stage6_recap.html#whats-different-from-stage-3-no-code-only-data">What’s different from Stage 3 (no code, only data)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage6_recap.html#healthy-signs-at-stage-6">Healthy signs at Stage 6</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage6_recap.html#multi-iteration-loop-paper-scale">Multi-iteration loop (paper-scale)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage6_recap.html#what-goes-wrong-and-what-to-do">What goes wrong, and what to do</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage6_recap.html#next">Next</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="evaluation.html">Evaluation — Serve + deploy via limb</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="evaluation.html#serve">Serve</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="evaluation.html#match-the-model-variant">Match the model variant</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="evaluation.html#limb-side-add-adv-ind-positive-to-the-obs-transform">limb side — add <code class="docutils literal notranslate"><span class="pre">adv_ind:</span> <span class="pre">&quot;positive&quot;</span></code> to the obs transform</a></li>
+<li class="toctree-l2"><a class="reference internal" href="evaluation.html#whats-served-vs-what-limb-sends">What’s served vs what limb sends</a></li>
+<li class="toctree-l2"><a class="reference internal" href="evaluation.html#quantitative-evaluation">Quantitative evaluation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="evaluation.html#common-deployment-issues">Common deployment issues</a></li>
+<li class="toctree-l2"><a class="reference internal" href="evaluation.html#closed-loop-feeding-evaluation-back-into-training">Closed loop — feeding evaluation back into training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="evaluation.html#next">Next</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Patches reference — making pistar Stage 4 / 5 actually run</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#patch-summary">Patch summary</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#patches-in-detail">Patches in detail</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#valuemodelweightloader">1. <code class="docutils literal notranslate"><span class="pre">ValueModelWeightLoader</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#missing-gemma-gm-data-directory">2. Missing <code class="docutils literal notranslate"><span class="pre">gemma/gm/data/</span></code> directory</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#kauldron-ktyping-kauldron-typing">3. <code class="docutils literal notranslate"><span class="pre">kauldron.ktyping</span></code> → <code class="docutils literal notranslate"><span class="pre">kauldron.typing</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#etils-edc-contextstack-in-dtype-params-py">4. &amp; 5. <code class="docutils literal notranslate"><span class="pre">etils.edc.ContextStack</span></code> in <code class="docutils literal notranslate"><span class="pre">_dtype_params.py</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#openpi-shared-console-progress-stubs">6. &amp; 7. <code class="docutils literal notranslate"><span class="pre">openpi.shared.{console,progress}</span></code> stubs</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dataconfig-field-rename-action-key">8. &amp; 9. <code class="docutils literal notranslate"><span class="pre">DataConfig</span></code> field rename + action key</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#create-value-data-loader">10. <code class="docutils literal notranslate"><span class="pre">create_value_data_loader</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dataloaderimpl-dataset-len">11. <code class="docutils literal notranslate"><span class="pre">DataLoaderImpl.dataset</span></code> + <code class="docutils literal notranslate"><span class="pre">__len__</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#trainstate-flax-struct-pytreenode">12. <code class="docutils literal notranslate"><span class="pre">TrainState</span></code> → <code class="docutils literal notranslate"><span class="pre">flax.struct.PyTreeNode</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#valuedataloaderimpl-gemmavaluetokenizer-tokenize-extra-args-int-step-for-tqdm">13. <code class="docutils literal notranslate"><span class="pre">_ValueDataLoaderImpl</span></code>, <code class="docutils literal notranslate"><span class="pre">GemmaValueTokenizer.tokenize</span></code> extra args, <code class="docutils literal notranslate"><span class="pre">int(step)</span></code> for tqdm</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#same-gaps-in-label-advantage-from-vlm-py-stage-5">14. &amp; 15. Same gaps in <code class="docutils literal notranslate"><span class="pre">label_advantage_from_vlm.py</span></code> (Stage 5)</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#end-to-end-verification">End-to-end verification</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">RECAP on YAM</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content style-external-links">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Patches reference — making pistar Stage 4 / 5 actually run</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/patches.md.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul><div class="rst-breadcrumbs-buttons" role="navigation" aria-label="Sequential page navigation">
+        <a href="evaluation.html" class="btn btn-neutral float-left" title="Evaluation — Serve + deploy via limb" accesskey="p"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+  </div>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="patches-reference-making-pistar-stage-4-5-actually-run">
+<h1>Patches reference — making pistar Stage 4 / 5 actually run<a class="headerlink" href="#patches-reference-making-pistar-stage-4-5-actually-run" title="Link to this heading"></a></h1>
+<p>Pistar’s <code class="docutils literal notranslate"><span class="pre">main</span></code> branch ships with Stage 4 (<code class="docutils literal notranslate"><span class="pre">train_value.py</span></code>) in an
+upstream-broken state: it imports a class that doesn’t exist,
+depends on a <code class="docutils literal notranslate"><span class="pre">gemma/gm/data/</span></code> directory that isn’t included, references
+modules renamed in newer <code class="docutils literal notranslate"><span class="pre">kauldron</span></code> / <code class="docutils literal notranslate"><span class="pre">etils</span></code> versions, and a few more.
+We resolved all of this with <strong>13 local patches</strong>.</p>
+<p>This page documents every patch, its origin, the file path, and the
+exact change. They are all local to your <code class="docutils literal notranslate"><span class="pre">pistar/</span></code> and
+<code class="docutils literal notranslate"><span class="pre">pistar/gemma/</span></code> trees — <code class="docutils literal notranslate"><span class="pre">openpi/</span></code> is untouched.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>File these as a single GitHub issue / PR on
+<a class="reference external" href="https://github.com/ybpy/pistar">ybpy/pistar</a> at some point; the
+maintainer will likely want most of these merged.</p>
+</div>
+<section id="patch-summary">
+<h2>Patch summary<a class="headerlink" href="#patch-summary" title="Link to this heading"></a></h2>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>#</p></th>
+<th class="head"><p>Symptom on <code class="docutils literal notranslate"><span class="pre">main</span></code></p></th>
+<th class="head"><p>File</p></th>
+<th class="head"><p>Fix</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>1</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">ImportError:</span> <span class="pre">cannot</span> <span class="pre">import</span> <span class="pre">name</span> <span class="pre">'ValueModelWeightLoader'</span> <span class="pre">from</span> <span class="pre">'openpi.training.weight_loaders'</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">pistar/src/openpi/training/weight_loaders.py</span></code></p></td>
+<td><p>add new <code class="docutils literal notranslate"><span class="pre">ValueModelWeightLoader</span></code> class</p></td>
+</tr>
+<tr class="row-odd"><td><p>2</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">ModuleNotFoundError:</span> <span class="pre">No</span> <span class="pre">module</span> <span class="pre">named</span> <span class="pre">'gemma.gm.data'</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">pistar/gemma/gemma/gm/data/</span></code></p></td>
+<td><p>copy missing dir from upstream google-deepmind/gemma</p></td>
+</tr>
+<tr class="row-even"><td><p>3</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">ModuleNotFoundError:</span> <span class="pre">No</span> <span class="pre">module</span> <span class="pre">named</span> <span class="pre">'kauldron.ktyping'</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">pistar/gemma/gemma/gm/data/{_functional,_transforms}.py</span></code></p></td>
+<td><p>sed <code class="docutils literal notranslate"><span class="pre">kauldron.ktyping</span></code> → <code class="docutils literal notranslate"><span class="pre">kauldron.typing</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>4</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">ImportError:</span> <span class="pre">cannot</span> <span class="pre">import</span> <span class="pre">name</span> <span class="pre">'ContextStack'</span> <span class="pre">from</span> <span class="pre">'etils.edc'</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">pistar/gemma/gemma/gm/utils/_dtype_params.py</span></code></p></td>
+<td><p>remove broken top-level <code class="docutils literal notranslate"><span class="pre">from</span> <span class="pre">etils.edc</span> <span class="pre">import</span> <span class="pre">ContextStack</span></code> import</p></td>
+</tr>
+<tr class="row-even"><td><p>5</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">AttributeError:</span> <span class="pre">module</span> <span class="pre">'etils.edc'</span> <span class="pre">has</span> <span class="pre">no</span> <span class="pre">attribute</span> <span class="pre">'ContextStack'</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">pistar/gemma/gemma/gm/utils/_dtype_params.py</span></code></p></td>
+<td><p>replace <code class="docutils literal notranslate"><span class="pre">edc.ContextStack[...]</span></code> usage with a local <code class="docutils literal notranslate"><span class="pre">_ContextStack(list)</span></code> fallback class</p></td>
+</tr>
+<tr class="row-odd"><td><p>6</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">ImportError:</span> <span class="pre">cannot</span> <span class="pre">import</span> <span class="pre">name</span> <span class="pre">'console'</span> <span class="pre">from</span> <span class="pre">'openpi.shared'</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">pistar/src/openpi/shared/console.py</span></code> (new)</p></td>
+<td><p>add module with <code class="docutils literal notranslate"><span class="pre">info</span> <span class="pre">/</span> <span class="pre">ok</span> <span class="pre">/</span> <span class="pre">warn</span> <span class="pre">/</span> <span class="pre">error</span> <span class="pre">/</span> <span class="pre">bold</span></code> helpers</p></td>
+</tr>
+<tr class="row-even"><td><p>7</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">ImportError:</span> <span class="pre">cannot</span> <span class="pre">import</span> <span class="pre">name</span> <span class="pre">'progress'</span> <span class="pre">from</span> <span class="pre">'openpi.shared'</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">pistar/src/openpi/shared/progress.py</span></code> (new)</p></td>
+<td><p>add module with a <code class="docutils literal notranslate"><span class="pre">sync_pbar_color</span></code> no-op stub</p></td>
+</tr>
+<tr class="row-odd"><td><p>8</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">TypeError:</span> <span class="pre">DataConfig.__init__()</span> <span class="pre">got</span> <span class="pre">an</span> <span class="pre">unexpected</span> <span class="pre">keyword</span> <span class="pre">argument</span> <span class="pre">'local_data_dir'</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">pistar/scripts/train_value.py:build_value_data_config</span></code></p></td>
+<td><p>derive <code class="docutils literal notranslate"><span class="pre">repo_id</span></code> from path basename instead of passing <code class="docutils literal notranslate"><span class="pre">local_data_dir</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>9</p></td>
+<td><p>(silent) <code class="docutils literal notranslate"><span class="pre">KeyError:</span> <span class="pre">'actions'</span></code> later, because lerobot tried <code class="docutils literal notranslate"><span class="pre">delta_timestamps={&quot;actions&quot;:</span> <span class="pre">…}</span></code> on a column we don’t have</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">pistar/scripts/train_value.py:build_value_data_config</span></code></p></td>
+<td><p>pass <code class="docutils literal notranslate"><span class="pre">action_sequence_keys=()</span></code> so lerobot skips action loading</p></td>
+</tr>
+<tr class="row-odd"><td><p>10</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">AttributeError:</span> <span class="pre">module</span> <span class="pre">'openpi.training.data_loader'</span> <span class="pre">has</span> <span class="pre">no</span> <span class="pre">attribute</span> <span class="pre">'create_value_data_loader'</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">pistar/src/openpi/training/data_loader.py</span></code></p></td>
+<td><p>add <code class="docutils literal notranslate"><span class="pre">create_value_data_loader</span></code> (thin wrapper over <code class="docutils literal notranslate"><span class="pre">create_torch_data_loader</span></code> w/ <code class="docutils literal notranslate"><span class="pre">action_horizon=1</span></code>)</p></td>
+</tr>
+<tr class="row-even"><td><p>11</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">AttributeError:</span> <span class="pre">'DataLoaderImpl'</span> <span class="pre">object</span> <span class="pre">has</span> <span class="pre">no</span> <span class="pre">attribute</span> <span class="pre">'dataset'</span></code>, then <code class="docutils literal notranslate"><span class="pre">TypeError:</span> <span class="pre">object</span> <span class="pre">of</span> <span class="pre">type</span> <span class="pre">'DataLoaderImpl'</span> <span class="pre">has</span> <span class="pre">no</span> <span class="pre">len()</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">pistar/src/openpi/training/data_loader.py</span></code></p></td>
+<td><p>store <code class="docutils literal notranslate"><span class="pre">TorchDataLoader._dataset</span></code> + add <code class="docutils literal notranslate"><span class="pre">DataLoaderImpl.dataset</span></code> property + <code class="docutils literal notranslate"><span class="pre">__len__</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>12</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">TypeError:</span> <span class="pre">Cannot</span> <span class="pre">interpret</span> <span class="pre">value</span> <span class="pre">of</span> <span class="pre">type</span> <span class="pre">&lt;class</span> <span class="pre">'__main__.TrainState'&gt;</span> <span class="pre">as</span> <span class="pre">an</span> <span class="pre">abstract</span> <span class="pre">array</span></code> during <code class="docutils literal notranslate"><span class="pre">device_put</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">pistar/scripts/train_value.py</span></code></p></td>
+<td><p>convert <code class="docutils literal notranslate"><span class="pre">TrainState</span></code> from <code class="docutils literal notranslate"><span class="pre">&#64;dataclasses.dataclass</span></code> to <code class="docutils literal notranslate"><span class="pre">flax.struct.PyTreeNode</span></code> (marks <code class="docutils literal notranslate"><span class="pre">model_def</span></code> as <code class="docutils literal notranslate"><span class="pre">pytree_node=False</span></code>)</p></td>
+</tr>
+<tr class="row-even"><td><p>13</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">KeyError:</span> <span class="pre">'actions'</span></code> in the <code class="docutils literal notranslate"><span class="pre">__iter__</span></code> of <code class="docutils literal notranslate"><span class="pre">DataLoaderImpl</span></code>; later <code class="docutils literal notranslate"><span class="pre">TypeError:</span> <span class="pre">timedelta</span> <span class="pre">seconds</span> <span class="pre">component:</span> <span class="pre">jaxlib.xla_extension.ArrayImpl</span></code>; later <code class="docutils literal notranslate"><span class="pre">TypeError:</span> <span class="pre">GemmaValueTokenizer.tokenize()</span> <span class="pre">got</span> <span class="pre">an</span> <span class="pre">unexpected</span> <span class="pre">keyword</span> <span class="pre">argument</span> <span class="pre">'adv_ind_dropout'</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">pistar/src/openpi/training/data_loader.py</span></code> + <code class="docutils literal notranslate"><span class="pre">pistar/scripts/train_value.py</span></code></p></td>
+<td><p>add <code class="docutils literal notranslate"><span class="pre">_ValueDataLoaderImpl</span></code> that yields <code class="docutils literal notranslate"><span class="pre">(obs,</span> <span class="pre">value)</span></code> instead of <code class="docutils literal notranslate"><span class="pre">(obs,</span> <span class="pre">actions)</span></code>; cast <code class="docutils literal notranslate"><span class="pre">start_step</span> <span class="pre">=</span> <span class="pre">int(train_state.step)</span></code> for tqdm; add <code class="docutils literal notranslate"><span class="pre">**_ignored</span></code> to <code class="docutils literal notranslate"><span class="pre">GemmaValueTokenizer.tokenize</span></code> signature</p></td>
+</tr>
+<tr class="row-odd"><td><p>14</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">TypeError:</span> <span class="pre">DataConfig.__init__()</span> <span class="pre">got</span> <span class="pre">an</span> <span class="pre">unexpected</span> <span class="pre">keyword</span> <span class="pre">argument</span> <span class="pre">'local_data_dir'</span></code> (Stage 5)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">pistar/scripts/label_advantage_from_vlm.py</span></code></p></td>
+<td><p>same fix as Patch 8/9 but in <code class="docutils literal notranslate"><span class="pre">_build_inference_dataset</span></code>: derive <code class="docutils literal notranslate"><span class="pre">repo_id</span></code> from path, add <code class="docutils literal notranslate"><span class="pre">action_sequence_keys=()</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>15</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">TypeError:</span> <span class="pre">GemmaValueTokenizer.tokenize()</span> <span class="pre">got</span> <span class="pre">an</span> <span class="pre">unexpected</span> <span class="pre">keyword</span> <span class="pre">argument</span> <span class="pre">'adv_ind_dropout'</span></code> (Stage 5)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">pistar/scripts/label_advantage_from_vlm.py</span></code></p></td>
+<td><p>same fix as Patch 13 — <code class="docutils literal notranslate"><span class="pre">label_advantage_from_vlm.py</span></code> has its <strong>own duplicate</strong> <code class="docutils literal notranslate"><span class="pre">GemmaValueTokenizer</span></code> class definition. Add <code class="docutils literal notranslate"><span class="pre">**_ignored</span></code> to its <code class="docutils literal notranslate"><span class="pre">tokenize</span></code> signature too.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="patches-in-detail">
+<h2>Patches in detail<a class="headerlink" href="#patches-in-detail" title="Link to this heading"></a></h2>
+<section id="valuemodelweightloader">
+<span id="id1"></span><h3>1. <code class="docutils literal notranslate"><span class="pre">ValueModelWeightLoader</span></code><a class="headerlink" href="#valuemodelweightloader" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">train_value.py:50</span></code> does
+<code class="docutils literal notranslate"><span class="pre">from</span> <span class="pre">openpi.training.weight_loaders</span> <span class="pre">import</span> <span class="pre">ValueModelWeightLoader</span></code>,
+but the class is missing from <code class="docutils literal notranslate"><span class="pre">weight_loaders.py</span></code> on <code class="docutils literal notranslate"><span class="pre">main</span></code> in pistar,
+in upstream openpi, and in this user’s openpi fork. We wrote it from
+scratch.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># pistar/src/openpi/training/weight_loaders.py</span>
+
+<span class="nd">@dataclasses</span><span class="o">.</span><span class="n">dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ValueModelWeightLoader</span><span class="p">(</span><span class="n">WeightLoader</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Loads pretrained VLM weights for the pistar ValueModel.</span>
+
+<span class="sd">    The bundle is the ybpy/vlm_ckpt distribution:</span>
+<span class="sd">      &lt;vlm_ckpt_dir&gt;/gemma-3-270m/step_00020000/    # orbax CheckpointManager save</span>
+<span class="sd">    Path resolution: env var OPENPI_VLM_CKPT_DIR, default ~/Downloads/vlm_ckpt.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">vlm_ckpt_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">dataclasses</span><span class="o">.</span><span class="n">field</span><span class="p">(</span>
+        <span class="n">default_factory</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+            <span class="s2">&quot;OPENPI_VLM_CKPT_DIR&quot;</span><span class="p">,</span>
+            <span class="nb">str</span><span class="p">(</span><span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="s2">&quot;~/Downloads/vlm_ckpt&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()),</span>
+        <span class="p">)</span>
+    <span class="p">)</span>
+    <span class="n">use_ema</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">load</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">params</span><span class="p">:</span> <span class="n">at</span><span class="o">.</span><span class="n">Params</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">at</span><span class="o">.</span><span class="n">Params</span><span class="p">:</span>
+        <span class="n">ckpt_path</span> <span class="o">=</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">vlm_ckpt_dir</span><span class="p">)</span> <span class="o">/</span> <span class="s2">&quot;gemma-3-270m&quot;</span> <span class="o">/</span> <span class="s2">&quot;step_00020000&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">ckpt_path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+
+        <span class="c1"># Replicated single-device sharding so this works on any GPU count.</span>
+        <span class="n">mesh</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">sharding</span><span class="o">.</span><span class="n">Mesh</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">devices</span><span class="p">(),</span> <span class="p">(</span><span class="s2">&quot;x&quot;</span><span class="p">,))</span>
+        <span class="n">sharding</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">sharding</span><span class="o">.</span><span class="n">NamedSharding</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">sharding</span><span class="o">.</span><span class="n">PartitionSpec</span><span class="p">())</span>
+
+        <span class="n">params_key</span> <span class="o">=</span> <span class="s2">&quot;ema_params&quot;</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_ema</span> <span class="k">else</span> <span class="s2">&quot;params&quot;</span>
+        <span class="k">with</span> <span class="n">ocp</span><span class="o">.</span><span class="n">PyTreeCheckpointer</span><span class="p">()</span> <span class="k">as</span> <span class="n">ckptr</span><span class="p">:</span>
+            <span class="n">metadata</span> <span class="o">=</span> <span class="n">ckptr</span><span class="o">.</span><span class="n">metadata</span><span class="p">(</span><span class="n">ckpt_path</span><span class="p">)</span>
+            <span class="n">item</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">metadata</span><span class="p">)</span>  <span class="c1"># must include all top-level keys (params, ema_params, step)</span>
+            <span class="n">restore_args</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">tree</span><span class="o">.</span><span class="n">map</span><span class="p">(</span>
+                <span class="k">lambda</span> <span class="n">_</span><span class="p">:</span> <span class="n">ocp</span><span class="o">.</span><span class="n">ArrayRestoreArgs</span><span class="p">(</span><span class="n">sharding</span><span class="o">=</span><span class="n">sharding</span><span class="p">,</span> <span class="n">restore_type</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">),</span>
+                <span class="n">item</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="n">restored</span> <span class="o">=</span> <span class="n">ckptr</span><span class="o">.</span><span class="n">restore</span><span class="p">(</span>
+                <span class="n">ckpt_path</span><span class="p">,</span>
+                <span class="n">ocp</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">PyTreeRestore</span><span class="p">(</span><span class="n">item</span><span class="o">=</span><span class="n">item</span><span class="p">,</span> <span class="n">restore_args</span><span class="o">=</span><span class="n">restore_args</span><span class="p">),</span>
+            <span class="p">)</span>
+
+        <span class="n">loaded</span> <span class="o">=</span> <span class="n">restored</span><span class="p">[</span><span class="n">params_key</span><span class="p">]</span>
+        <span class="c1"># Strip nnx &quot;value&quot; suffix the same way openpi.models.model.restore_params does.</span>
+        <span class="n">flat</span> <span class="o">=</span> <span class="n">flax</span><span class="o">.</span><span class="n">traverse_util</span><span class="o">.</span><span class="n">flatten_dict</span><span class="p">(</span><span class="n">loaded</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">flat</span> <span class="ow">and</span> <span class="nb">all</span><span class="p">(</span><span class="n">kp</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;value&quot;</span> <span class="k">for</span> <span class="n">kp</span> <span class="ow">in</span> <span class="n">flat</span><span class="p">):</span>
+            <span class="n">flat</span> <span class="o">=</span> <span class="p">{</span><span class="n">kp</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">kp</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">flat</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+            <span class="n">loaded</span> <span class="o">=</span> <span class="n">flax</span><span class="o">.</span><span class="n">traverse_util</span><span class="o">.</span><span class="n">unflatten_dict</span><span class="p">(</span><span class="n">flat</span><span class="p">)</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+            <span class="s2">&quot;ValueModelWeightLoader: restored </span><span class="si">%d</span><span class="s2"> leaf arrays from </span><span class="si">%s</span><span class="s2"> (key=</span><span class="si">%s</span><span class="s2">, step=</span><span class="si">%s</span><span class="s2">)&quot;</span><span class="p">,</span>
+            <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">flax</span><span class="o">.</span><span class="n">traverse_util</span><span class="o">.</span><span class="n">flatten_dict</span><span class="p">(</span><span class="n">loaded</span><span class="p">)),</span>
+            <span class="n">ckpt_path</span><span class="p">,</span> <span class="n">params_key</span><span class="p">,</span> <span class="n">restored</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;step&quot;</span><span class="p">),</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Keep the model&#39;s fresh init for any key not in loaded.</span>
+        <span class="k">return</span> <span class="n">_merge_params</span><span class="p">(</span><span class="n">loaded</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">missing_regex</span><span class="o">=</span><span class="s2">&quot;.*&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Also adds these imports to <code class="docutils literal notranslate"><span class="pre">weight_loaders.py</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">os</span><span class="o">,</span><span class="w"> </span><span class="nn">pathlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">orbax.checkpoint</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">ocp</span>
+</pre></div>
+</div>
+</section>
+<section id="missing-gemma-gm-data-directory">
+<h3>2. Missing <code class="docutils literal notranslate"><span class="pre">gemma/gm/data/</span></code> directory<a class="headerlink" href="#missing-gemma-gm-data-directory" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># from anywhere</span>
+<span class="nb">cd</span><span class="w"> </span>/tmp<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>rm<span class="w"> </span>-rf<span class="w"> </span>gemma_upstream
+git<span class="w"> </span>clone<span class="w"> </span>--depth<span class="w"> </span><span class="m">1</span><span class="w"> </span>--filter<span class="o">=</span>blob:none<span class="w"> </span>--sparse<span class="w"> </span>https://github.com/google-deepmind/gemma<span class="w"> </span>gemma_upstream
+<span class="nb">cd</span><span class="w"> </span>gemma_upstream
+git<span class="w"> </span>sparse-checkout<span class="w"> </span><span class="nb">set</span><span class="w"> </span>gemma/gm/data
+cp<span class="w"> </span>-r<span class="w"> </span>gemma/gm/data<span class="w"> </span>~/limb/pistar/gemma/gemma/gm/data
+</pre></div>
+</div>
+<p>Adds <code class="docutils literal notranslate"><span class="pre">__init__.py</span></code>, <code class="docutils literal notranslate"><span class="pre">_functional.py</span></code>, <code class="docutils literal notranslate"><span class="pre">_functional_test.py</span></code>, <code class="docutils literal notranslate"><span class="pre">_parquet.py</span></code>,
+<code class="docutils literal notranslate"><span class="pre">_tasks.py</span></code>, <code class="docutils literal notranslate"><span class="pre">_transforms.py</span></code>, <code class="docutils literal notranslate"><span class="pre">_transforms_test.py</span></code>.</p>
+</section>
+<section id="kauldron-ktyping-kauldron-typing">
+<h3>3. <code class="docutils literal notranslate"><span class="pre">kauldron.ktyping</span></code> → <code class="docutils literal notranslate"><span class="pre">kauldron.typing</span></code><a class="headerlink" href="#kauldron-ktyping-kauldron-typing" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sed<span class="w"> </span>-i<span class="w"> </span><span class="s1">&#39;s/from kauldron\.ktyping/from kauldron.typing/g&#39;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>~/limb/pistar/gemma/gemma/gm/data/*.py
+</pre></div>
+</div>
+<p>Affects <code class="docutils literal notranslate"><span class="pre">_functional.py</span></code> and <code class="docutils literal notranslate"><span class="pre">_transforms.py</span></code>.</p>
+</section>
+<section id="etils-edc-contextstack-in-dtype-params-py">
+<h3>4. &amp; 5. <code class="docutils literal notranslate"><span class="pre">etils.edc.ContextStack</span></code> in <code class="docutils literal notranslate"><span class="pre">_dtype_params.py</span></code><a class="headerlink" href="#etils-edc-contextstack-in-dtype-params-py" title="Link to this heading"></a></h3>
+<p>Two changes in the same file. First remove the top-level import that
+fails on modern etils:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># pistar/gemma/gemma/gm/utils/_dtype_params.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">etils</span><span class="w"> </span><span class="kn">import</span> <span class="n">edc</span>
+<span class="c1"># NOTE: removed `from etils.edc import ContextStack` (modern etils dropped it;</span>
+<span class="c1"># the file has a fallback below).</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">etils.epy</span><span class="w"> </span><span class="kn">import</span> <span class="n">_internal</span>
+</pre></div>
+</div>
+<p>Then replace the (failing) try/except + the (failing) type annotation
+usage with a single unconditional local fallback:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Modern etils (&gt;=1.12) no longer exposes edc.ContextStack; local list-based</span>
+<span class="c1"># fallback that satisfies the few usages below.</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">_ContextStack</span><span class="p">(</span><span class="nb">list</span><span class="p">):</span>
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">stack</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;_ContextStack&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+<span class="c1"># … later:</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_should_replace_dtype</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">module</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span>
+    <span class="n">stack</span><span class="p">:</span> <span class="n">_ContextStack</span><span class="p">[</span><span class="n">_DTypeState</span><span class="p">],</span>   <span class="c1"># was: edc.ContextStack[_DTypeState]</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+    <span class="o">...</span>
+</pre></div>
+</div>
+</section>
+<section id="openpi-shared-console-progress-stubs">
+<h3>6. &amp; 7. <code class="docutils literal notranslate"><span class="pre">openpi.shared.{console,progress}</span></code> stubs<a class="headerlink" href="#openpi-shared-console-progress-stubs" title="Link to this heading"></a></h3>
+<p>Two new files. <code class="docutils literal notranslate"><span class="pre">console.py</span></code> provides text-coloring helpers used by
+pistar’s training logs:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># pistar/src/openpi/shared/console.py</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">info</span><span class="p">(</span><span class="n">msg</span><span class="p">):</span>  <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\033</span><span class="s2">[94mℹ </span><span class="si">{</span><span class="n">msg</span><span class="si">}</span><span class="se">\033</span><span class="s2">[0m&quot;</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">ok</span><span class="p">(</span><span class="n">msg</span><span class="p">):</span>    <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\033</span><span class="s2">[92m✓ </span><span class="si">{</span><span class="n">msg</span><span class="si">}</span><span class="se">\033</span><span class="s2">[0m&quot;</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">warn</span><span class="p">(</span><span class="n">msg</span><span class="p">):</span>  <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\033</span><span class="s2">[93m⚠ </span><span class="si">{</span><span class="n">msg</span><span class="si">}</span><span class="se">\033</span><span class="s2">[0m&quot;</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">error</span><span class="p">(</span><span class="n">msg</span><span class="p">):</span> <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\033</span><span class="s2">[91m✗ </span><span class="si">{</span><span class="n">msg</span><span class="si">}</span><span class="se">\033</span><span class="s2">[0m&quot;</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">bold</span><span class="p">(</span><span class="n">msg</span><span class="p">):</span>  <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\033</span><span class="s2">[1m</span><span class="si">{</span><span class="n">msg</span><span class="si">}</span><span class="se">\033</span><span class="s2">[0m&quot;</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">progress.py</span></code> is a no-op stub for the only function that’s called:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># pistar/src/openpi/shared/progress.py</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">sync_pbar_color</span><span class="p">(</span><span class="n">pbar</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;No-op stub. Upstream pistar&#39;s intent was probably to recolor a tqdm</span>
+<span class="sd">    progress bar based on training state, but the implementation isn&#39;t shipped.&quot;&quot;&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="dataconfig-field-rename-action-key">
+<h3>8. &amp; 9. <code class="docutils literal notranslate"><span class="pre">DataConfig</span></code> field rename + action key<a class="headerlink" href="#dataconfig-field-rename-action-key" title="Link to this heading"></a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># pistar/scripts/train_value.py:build_value_data_config</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">build_value_data_config</span><span class="p">(</span><span class="n">local_data_dir</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">tokenizer_path</span><span class="p">):</span>
+    <span class="n">repo_id</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;local/</span><span class="si">{</span><span class="n">Path</span><span class="p">(</span><span class="n">local_data_dir</span><span class="p">)</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span>  <span class="c1"># was: local_data_dir=local_data_dir</span>
+    <span class="k">return</span> <span class="n">_config</span><span class="o">.</span><span class="n">DataConfig</span><span class="p">(</span>
+        <span class="n">repo_id</span><span class="o">=</span><span class="n">repo_id</span><span class="p">,</span>
+        <span class="n">prompt_from_task</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="c1"># Value model needs no action chunks; pass empty so lerobot doesn&#39;t try to</span>
+        <span class="c1"># delta_timestamps-sample an &quot;actions&quot; column that limb writes as &quot;action&quot;.</span>
+        <span class="n">action_sequence_keys</span><span class="o">=</span><span class="p">(),</span>
+        <span class="n">data_transforms</span><span class="o">=</span><span class="n">_transforms</span><span class="o">.</span><span class="n">Group</span><span class="p">(</span>
+            <span class="n">inputs</span><span class="o">=</span><span class="p">[</span><span class="n">RemapValueLabelKey</span><span class="p">(),</span> <span class="n">value_policy</span><span class="o">.</span><span class="n">ValueInputs</span><span class="p">()],</span>
+        <span class="p">),</span>
+        <span class="n">model_transforms</span><span class="o">=</span><span class="n">_transforms</span><span class="o">.</span><span class="n">Group</span><span class="p">(</span>
+            <span class="n">inputs</span><span class="o">=</span><span class="p">[</span>
+                <span class="n">_transforms</span><span class="o">.</span><span class="n">ResizeImages</span><span class="p">(</span><span class="mi">224</span><span class="p">,</span> <span class="mi">224</span><span class="p">),</span>
+                <span class="n">_transforms</span><span class="o">.</span><span class="n">TokenizePrompt</span><span class="p">(</span><span class="n">GemmaValueTokenizer</span><span class="p">(</span>
+                    <span class="n">config</span><span class="o">.</span><span class="n">max_token_len</span><span class="p">,</span> <span class="n">tokenizer_path</span><span class="o">=</span><span class="n">tokenizer_path</span><span class="p">)),</span>
+                <span class="n">_transforms</span><span class="o">.</span><span class="n">PadStatesAndActions</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">action_dim</span><span class="p">),</span>
+            <span class="p">]</span>
+        <span class="p">),</span>
+    <span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="create-value-data-loader">
+<h3>10. <code class="docutils literal notranslate"><span class="pre">create_value_data_loader</span></code><a class="headerlink" href="#create-value-data-loader" title="Link to this heading"></a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># pistar/src/openpi/training/data_loader.py</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">create_value_data_loader</span><span class="p">(</span>
+    <span class="n">data_config</span><span class="p">:</span> <span class="n">_config</span><span class="o">.</span><span class="n">DataConfig</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">model_config</span><span class="p">:</span> <span class="n">_model</span><span class="o">.</span><span class="n">BaseModelConfig</span><span class="p">,</span>
+    <span class="n">batch_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">sharding</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">sharding</span><span class="o">.</span><span class="n">Sharding</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">skip_norm_stats</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">shuffle</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">num_batches</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">num_workers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="n">seed</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="n">framework</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;jax&quot;</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;DataLoader&quot;</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Value-model data loader. Same pipeline as create_torch_data_loader but</span>
+<span class="sd">    pinned to action_horizon=1 because the value model predicts V(o_t) for a</span>
+<span class="sd">    single timestep.&quot;&quot;&quot;</span>
+    <span class="n">action_horizon</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">model_config</span><span class="p">,</span> <span class="s2">&quot;action_horizon&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="ow">or</span> <span class="mi">1</span>
+    <span class="n">policy_loader</span> <span class="o">=</span> <span class="n">create_torch_data_loader</span><span class="p">(</span>
+        <span class="n">data_config</span><span class="p">,</span> <span class="n">model_config</span><span class="o">=</span><span class="n">model_config</span><span class="p">,</span> <span class="n">action_horizon</span><span class="o">=</span><span class="n">action_horizon</span><span class="p">,</span>
+        <span class="n">batch_size</span><span class="o">=</span><span class="n">batch_size</span><span class="p">,</span> <span class="n">sharding</span><span class="o">=</span><span class="n">sharding</span><span class="p">,</span> <span class="n">skip_norm_stats</span><span class="o">=</span><span class="n">skip_norm_stats</span><span class="p">,</span>
+        <span class="n">shuffle</span><span class="o">=</span><span class="n">shuffle</span><span class="p">,</span> <span class="n">num_batches</span><span class="o">=</span><span class="n">num_batches</span><span class="p">,</span> <span class="n">num_workers</span><span class="o">=</span><span class="n">num_workers</span><span class="p">,</span>
+        <span class="n">seed</span><span class="o">=</span><span class="n">seed</span><span class="p">,</span> <span class="n">framework</span><span class="o">=</span><span class="n">framework</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">_ValueDataLoaderImpl</span><span class="p">(</span><span class="n">policy_loader</span><span class="o">.</span><span class="n">data_config</span><span class="p">(),</span> <span class="n">policy_loader</span><span class="o">.</span><span class="n">_data_loader</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="dataloaderimpl-dataset-len">
+<h3>11. <code class="docutils literal notranslate"><span class="pre">DataLoaderImpl.dataset</span></code> + <code class="docutils literal notranslate"><span class="pre">__len__</span></code><a class="headerlink" href="#dataloaderimpl-dataset-len" title="Link to this heading"></a></h3>
+<p>In <code class="docutils literal notranslate"><span class="pre">data_loader.py</span></code>, store the dataset on <code class="docutils literal notranslate"><span class="pre">TorchDataLoader</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">TorchDataLoader</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">local_batch_size</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="o">...</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_dataset</span> <span class="o">=</span> <span class="n">dataset</span>       <span class="c1"># NEW — needed by DataLoaderImpl.dataset</span>
+        <span class="o">...</span>
+</pre></div>
+</div>
+<p>Then in <code class="docutils literal notranslate"><span class="pre">DataLoaderImpl</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">DataLoaderImpl</span><span class="p">(</span><span class="n">DataLoader</span><span class="p">):</span>
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">dataset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data_loader</span><span class="p">,</span> <span class="s2">&quot;_dataset&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="n">inner</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data_loader</span><span class="p">,</span> <span class="s2">&quot;_data_loader&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">inner</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">inner</span><span class="p">,</span> <span class="s2">&quot;__len__&quot;</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">inner</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+                <span class="k">pass</span>
+        <span class="n">ds</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dataset</span>
+        <span class="n">bs</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data_loader</span><span class="p">,</span> <span class="s2">&quot;_local_batch_size&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="n">ds</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">ds</span><span class="p">)</span> <span class="o">//</span> <span class="n">bs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="mi">0</span>
+</pre></div>
+</div>
+</section>
+<section id="trainstate-flax-struct-pytreenode">
+<h3>12. <code class="docutils literal notranslate"><span class="pre">TrainState</span></code> → <code class="docutils literal notranslate"><span class="pre">flax.struct.PyTreeNode</span></code><a class="headerlink" href="#trainstate-flax-struct-pytreenode" title="Link to this heading"></a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># pistar/scripts/train_value.py</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">flax.struct</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">TrainState</span><span class="p">(</span><span class="n">flax</span><span class="o">.</span><span class="n">struct</span><span class="o">.</span><span class="n">PyTreeNode</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;JAX-pytree TrainState. The original @dataclasses.dataclass version is</span>
+<span class="sd">    not traversable by jax.tree.map / jax.jit so device_put errors with</span>
+<span class="sd">    &quot;Cannot interpret value of type ... as an abstract array&quot;.&quot;&quot;&quot;</span>
+
+    <span class="n">step</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">params</span><span class="p">:</span> <span class="n">nnx</span><span class="o">.</span><span class="n">State</span>
+    <span class="n">model_def</span><span class="p">:</span> <span class="n">nnx</span><span class="o">.</span><span class="n">GraphDef</span> <span class="o">=</span> <span class="n">flax</span><span class="o">.</span><span class="n">struct</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">pytree_node</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">opt_state</span><span class="p">:</span> <span class="n">optax</span><span class="o">.</span><span class="n">OptState</span>
+    <span class="n">ema_params</span><span class="p">:</span> <span class="n">nnx</span><span class="o">.</span><span class="n">State</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</pre></div>
+</div>
+</section>
+<section id="valuedataloaderimpl-gemmavaluetokenizer-tokenize-extra-args-int-step-for-tqdm">
+<h3>13. <code class="docutils literal notranslate"><span class="pre">_ValueDataLoaderImpl</span></code>, <code class="docutils literal notranslate"><span class="pre">GemmaValueTokenizer.tokenize</span></code> extra args, <code class="docutils literal notranslate"><span class="pre">int(step)</span></code> for tqdm<a class="headerlink" href="#valuedataloaderimpl-gemmavaluetokenizer-tokenize-extra-args-int-step-for-tqdm" title="Link to this heading"></a></h3>
+<p>Three small changes that all surfaced once the pipeline got past JIT
+compile.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># pistar/src/openpi/training/data_loader.py — yield (obs, value) for value training</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">_ValueDataLoaderImpl</span><span class="p">(</span><span class="n">DataLoaderImpl</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__iter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">batch</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_loader</span><span class="p">:</span>
+            <span class="k">yield</span> <span class="n">_model</span><span class="o">.</span><span class="n">Observation</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">batch</span><span class="p">),</span> <span class="n">batch</span><span class="p">[</span><span class="s2">&quot;value&quot;</span><span class="p">]</span>
+</pre></div>
+</div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># pistar/scripts/train_value.py — accept the new pi0.6 kwargs that we don&#39;t need</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">GemmaValueTokenizer</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">tokenize</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prompt</span><span class="p">,</span> <span class="n">state</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">adv_ind</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span>
+                 <span class="n">adv_ind_dropout</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="n">_ignored</span><span class="p">):</span>
+        <span class="c1"># Value model doesn&#39;t condition on adv_ind (only the policy does);</span>
+        <span class="c1"># accept and discard the extra args that pi0.6&#39;s TokenizePrompt now passes.</span>
+        <span class="k">del</span> <span class="n">state</span><span class="p">,</span> <span class="n">adv_ind</span><span class="p">,</span> <span class="n">adv_ind_dropout</span><span class="p">,</span> <span class="n">_ignored</span>
+        <span class="o">...</span>
+</pre></div>
+</div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># pistar/scripts/train_value.py — tqdm needs Python int for timedelta math</span>
+<span class="n">start_step</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">train_state</span><span class="o">.</span><span class="n">step</span><span class="p">)</span>   <span class="c1"># was: start_step = train_state.step</span>
+</pre></div>
+</div>
+</section>
+<section id="same-gaps-in-label-advantage-from-vlm-py-stage-5">
+<h3>14. &amp; 15. Same gaps in <code class="docutils literal notranslate"><span class="pre">label_advantage_from_vlm.py</span></code> (Stage 5)<a class="headerlink" href="#same-gaps-in-label-advantage-from-vlm-py-stage-5" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">scripts/label_advantage_from_vlm.py</span></code> is its own script (not just a
+caller of <code class="docutils literal notranslate"><span class="pre">train_value.py</span></code>) and ships with <strong>duplicate copies</strong> of the
+data-config block and the <code class="docutils literal notranslate"><span class="pre">GemmaValueTokenizer</span></code> class. Both need the
+same patches we applied in Stage 4.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># pistar/scripts/label_advantage_from_vlm.py:_build_inference_dataset (Patch 14)</span>
+<span class="n">repo_id</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;local/</span><span class="si">{</span><span class="n">Path</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">data_dir</span><span class="p">))</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span>
+<span class="n">data_config</span> <span class="o">=</span> <span class="n">_config</span><span class="o">.</span><span class="n">DataConfig</span><span class="p">(</span>
+    <span class="n">repo_id</span><span class="o">=</span><span class="n">repo_id</span><span class="p">,</span>                         <span class="c1"># was: local_data_dir=str(data_dir)</span>
+    <span class="n">prompt_from_task</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="n">action_sequence_keys</span><span class="o">=</span><span class="p">(),</span>                  <span class="c1"># value labeling needs no action chunks</span>
+    <span class="n">data_transforms</span><span class="o">=</span><span class="n">_transforms</span><span class="o">.</span><span class="n">Group</span><span class="p">(</span><span class="n">inputs</span><span class="o">=</span><span class="p">[</span>
+        <span class="n">LabelAdvantageInputs</span><span class="p">(</span>
+            <span class="n">base_image_col</span><span class="o">=</span><span class="n">base_image_col</span><span class="p">,</span>
+            <span class="n">wrist_image_col</span><span class="o">=</span><span class="n">wrist_image_col</span><span class="p">,</span>
+            <span class="n">right_wrist_image_col</span><span class="o">=</span><span class="n">right_wrist_image_col</span><span class="p">,</span>
+            <span class="n">copy_wrist_to_right</span><span class="o">=</span><span class="n">copy_wrist_to_right</span><span class="p">,</span>
+            <span class="n">instruction_col</span><span class="o">=</span><span class="n">instruction_col</span><span class="p">,</span>
+            <span class="n">tasks_map</span><span class="o">=</span><span class="n">tasks_map</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="p">]),</span>
+    <span class="o">...</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># pistar/scripts/label_advantage_from_vlm.py — duplicate class GemmaValueTokenizer (Patch 15)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">tokenize</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prompt</span><span class="p">,</span> <span class="n">state</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">adv_ind</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span>
+             <span class="n">adv_ind_dropout</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="n">_ignored</span><span class="p">):</span>
+    <span class="c1"># Value model doesn&#39;t condition on adv_ind (only the policy does);</span>
+    <span class="c1"># accept and discard the extra args that pi0.6&#39;s TokenizePrompt now passes.</span>
+    <span class="c1"># Same patch as scripts/train_value.py&#39;s GemmaValueTokenizer.</span>
+    <span class="k">del</span> <span class="n">state</span><span class="p">,</span> <span class="n">adv_ind</span><span class="p">,</span> <span class="n">adv_ind_dropout</span><span class="p">,</span> <span class="n">_ignored</span>
+    <span class="o">...</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="end-to-end-verification">
+<h2>End-to-end verification<a class="headerlink" href="#end-to-end-verification" title="Link to this heading"></a></h2>
+<p>After applying all 15 patches:</p>
+<ul class="simple">
+<li><p>The 5-step smoke command from <a class="reference internal" href="stage4_value.html"><span class="std std-doc">Stage 4</span></a> completes in
+~30 s and saves a 5.1 GB checkpoint to
+<code class="docutils literal notranslate"><span class="pre">pistar/checkpoints/value_model/yam_vial_v1/step_00000005/</span></code>.</p></li>
+<li><p>The Stage 5 command from <a class="reference internal" href="stage5_advantage.html"><span class="std std-doc">Stage 5</span></a> walks the
+dataset, runs VLM inference per autonomous frame, computes N-step
+advantage, and overwrites <code class="docutils literal notranslate"><span class="pre">adv_ind</span></code> in place. Verify with the
+histogram snippet on that page (expected: zero <code class="docutils literal notranslate"><span class="pre">none</span></code> after Stage 5).</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="evaluation.html" class="btn btn-neutral float-left" title="Evaluation — Serve + deploy via limb" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, limb + pistar contributors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

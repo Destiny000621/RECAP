@@ -1,0 +1,144 @@
+# Setup
+
+## Repositories
+
+Three repos collaborate in this stack. They live as siblings under one
+parent directory (this site assumes `~/limb/`).
+
+```text
+limb/                       # YAM control + DAgger collection + serve client
+├── openpi/                 # JAX SFT (yam_finetune.md)
+├── pistar/                 # JAX RECAP (Stages 3-6), our 13 patches applied
+└── datasets/               # converted LeRobot v3.0 + v2.1 datasets
+```
+
+### Clone
+
+```bash
+cd ~/limb
+
+# limb (this should already be the working dir)
+# openpi (your YAM-tuned fork — produces the SFT checkpoint in Stage 2)
+git clone https://github.com/Avant-US/openpi.git openpi
+# pistar (fork of openpi where the value model + advantage labeling live)
+git clone https://github.com/ybpy/pistar.git pistar
+```
+
+### Patches you must apply to pistar
+
+Pistar `main` ships with several missing files / API-drift bugs in the
+Stage 4 / Stage 5 path. We resolved them with 13 targeted patches; see
+[the patches reference](patches.md) for the complete diff list. All
+patches are local to `pistar/` and `pistar/gemma/` — your `openpi/` tree
+is untouched.
+
+```{warning}
+Do **not** share a venv between `openpi/` and `pistar/`. They depend on
+different pinned versions of openpi-internal modules. The collection
+side (`limb`) gets its own venv too.
+```
+
+## Python environments
+
+Three independent venvs.
+
+```bash
+# 1. limb (data collection + deployment)
+cd ~/limb
+uv venv .venv && source .venv/bin/activate
+uv sync
+deactivate
+
+# 2. openpi (Stage 2 SFT only)
+cd openpi
+uv venv ~/.venvs/openpi --python 3.11
+source ~/.venvs/openpi/bin/activate
+uv pip install -e .
+deactivate
+
+# 3. pistar (Stages 3-6 + Stage 4 value + Stage 5 advantage)
+cd ../pistar
+git submodule update --init --recursive
+uv venv ~/.venvs/pistar --python 3.11.9
+source ~/.venvs/pistar/bin/activate
+GIT_LFS_SKIP_SMUDGE=1 uv sync --active
+GIT_LFS_SKIP_SMUDGE=1 uv pip install -e .
+uv pip install -r pistar_requirements.txt
+```
+
+## VLM checkpoint (for Stage 4)
+
+Pistar's value model is initialized from a pretrained VLM bundle
+distributed at
+[`ybpy/vlm_ckpt`](https://huggingface.co/ybpy/vlm_ckpt) on HF (also a
+Google Drive mirror linked in pistar's README).
+
+```bash
+# pick a stable location
+mkdir -p ~/Downloads/vlm_ckpt
+huggingface-cli download ybpy/vlm_ckpt --local-dir ~/Downloads/vlm_ckpt
+ls ~/Downloads/vlm_ckpt
+# expect:
+#   gemma-3-270m/         (orbax checkpoint at step_00020000/)
+#   siglip2-so400m-patch14-224-jax/
+#   tokenizer.model
+```
+
+Our {ref}`ValueModelWeightLoader <valuemodelweightloader>` reads
+`$OPENPI_VLM_CKPT_DIR` (default `~/Downloads/vlm_ckpt`) and the orbax at
+`<dir>/gemma-3-270m/step_00020000/`.
+
+## pi0.5 base weights (for Stage 2 SFT)
+
+```bash
+# Either: cloud-pull on first training step (slow first run)
+gcloud auth application-default login
+
+# Or: pre-download to a local mirror
+mkdir -p ~/pi05_base
+gsutil -m rsync -r gs://openpi-assets/checkpoints/pi05_base ~/pi05_base
+# Then in pistar/openpi configs, point CheckpointWeightLoader at
+# "/home/<user>/pi05_base/params"
+```
+
+## Hardware
+
+| Component   | Spec                                                       |
+|-------------|------------------------------------------------------------|
+| Robot       | YAM bimanual (I2RT) — 2 followers + 2 leaders, 6 DoF each + gripper |
+| Cameras     | 3× Intel RealSense — head + left-wrist + right-wrist (224×224 input to model) |
+| Pedal       | PCsensor / iKKEGOL double pedal (vendor `0x3553`, product `0xb001`) |
+| GPU         | Multi-GPU for full fine-tune (e.g. 8× H100 80 GB) — *or* a single 24 GB consumer GPU for LoRA-only smoke runs |
+| CAN         | 4× CAN buses (`can_follow_l/r`, `can_leader_l/r`) at 1 Mbps |
+
+## Verify everything is wired
+
+A 90-second sanity script before doing anything serious.
+
+```bash
+# 1. Cameras
+cd ~/limb
+uv run scripts/diagnostics/test_realsense_cameras.py
+
+# 2. CAN + arms (each command times out if its CAN bus is broken)
+uv run python scripts/diagnostics/print_YAM_joints.py --channel can_follow_l \
+    --limits-from robot_configs/yam/left.yaml
+uv run python scripts/diagnostics/print_YAM_joints.py --channel can_follow_r \
+    --limits-from robot_configs/yam/left.yaml robot_configs/yam/right.yaml
+uv run python scripts/diagnostics/print_YAM_joints.py --channel can_leader_l \
+    --limits-from robot_configs/yam/left.yaml robot_configs/yam/leader_left.yaml
+uv run python scripts/diagnostics/print_YAM_joints.py --channel can_leader_r \
+    --limits-from robot_configs/yam/left.yaml robot_configs/yam/leader_right.yaml
+
+# 3. Foot pedal
+uv run scripts/diagnostics/test_dagger_phase.py
+```
+
+All four arms should stream joint values. The pedal test should print
+phase-transition messages on each stomp. If any of these fails, fix the
+hardware before continuing — collection will not work, and there is no
+software workaround.
+
+## Next
+
+Continue to [Stage 0 — Collection](stage0_collection.md).

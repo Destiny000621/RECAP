@@ -1,0 +1,160 @@
+# Stage 1 — Convert to LeRobot v2.1 with five RECAP columns
+
+Raw `recordings/<session>/` directories are not directly trainable.
+This stage runs **two** converters in series:
+
+1. `limb convert-lerobot --pistar` — raw episodes → LeRobot **v3.0** with
+   the five RECAP columns added per frame.
+2. `openpi/scripts/convert_v3_to_v21.py` — v3.0 → **v2.1** layout (which
+   pistar's lerobot 0.1.0 consumer reads). This step is a thin
+   symlink-rewrite — it does **not** copy or transform the data parquets.
+
+## The five RECAP columns
+
+Schema follows pistar's `examples/libero/pistar_rlds_demo_processing.py`
+(matching field names so pistar's `train_value.py` and
+`label_advantage_from_vlm.py` ingest the dataset directly).
+
+| Column         | dtype       | Meaning                                                     | Derivation from limb data            |
+|----------------|-------------|-------------------------------------------------------------|--------------------------------------|
+| `intervention` | int64 [1]   | `1` if operator was driving (CORRECTING), else `0`           | `phase == "correcting"` (with `interventions.npy` as fallback) |
+| `reward`       | float32 [1] | sparse: `1.0` at last frame iff `SUCCESS` marker, else `0.0` | `episode_success(episode_dir)`        |
+| `reward_label` | float32 [1] | per-step reward used by VLM N-step advantage: `−1/T` except `0` at terminal | constant formula                    |
+| `value_label`  | float32 [1] | VLM training target: success → linear ramp `−(T−1−t)/T`; failure → constant `−1` | `episode_success` controls the branch |
+| `adv_ind`      | string [1]  | `"positive"` on intervention frames, `"none"` elsewhere      | broadcast from `intervention` (Stage 5 overwrites `"none"` later) |
+
+The formulas live in [`limb/data/episode_utils.py`](https://github.com/TToTMooN/limb/blob/main/limb/data/episode_utils.py)
+as six helpers (`episode_success`, `compute_pistar_intervention`,
+`compute_pistar_reward`, `compute_pistar_reward_label`,
+`compute_pistar_value_label`, `compute_pistar_adv_ind`). They mirror
+pistar's demo conversion exactly so the rest of the pi0.6 pipeline can
+treat limb-collected data identically to LIBERO demo data.
+
+## Command
+
+```bash
+cd ~/limb
+source .venv/bin/activate
+
+# Step 1: raw → v3.0 with the 5 pistar columns
+uv run limb convert-lerobot \
+  --input-dir recordings/<your_session_dir> \
+  --output-dir datasets/<task>_pistar_v1 \
+  --target-fps 30 \
+  --include-arms left right \
+  --pistar \
+  --task "<your task instruction>"
+
+# Step 2: v3.0 → v2.1 (symlinks the data parquets, rewrites only meta files)
+uv run python openpi/scripts/convert_v3_to_v21.py \
+  --src=datasets/<task>_pistar_v1 \
+  --dst=datasets/<task>_pistar_v1_v21
+```
+
+### Flags that matter for pi0.6
+
+| Flag                          | Why                                                                                                          |
+|-------------------------------|--------------------------------------------------------------------------------------------------------------|
+| `--pistar`                    | Emit the five RECAP columns. Required for any downstream pistar Stage.                                       |
+| `--include-arms left right`   | DAgger records **four** arms (followers + leaders); without this filter you get 28-D state instead of 14-D. |
+| `--target-fps 30`             | YAM's 30 Hz target rate — matches what pi0.5/pi0.6 expects from its training data.                            |
+| `--task "<...>"`              | Overrides the per-session `metadata.json:task_instruction`. Keep one prompt per dataset.                      |
+
+### SFT demo variant
+
+For the SFT bootstrap dataset (gello / teleop sessions, no DAgger phase
+machine) use `--pistar-demo` instead. It forces `intervention=1` and
+treats every episode as a success regardless of marker:
+
+```bash
+uv run limb convert-lerobot \
+  --input-dir recordings/<gello_session> \
+  --output-dir datasets/<task>_demo \
+  --target-fps 30 --include-arms left right --pistar-demo
+```
+
+That matches pistar's `pistar_rlds_demo_processing.py` for LIBERO demos.
+
+## Verify the conversion
+
+A quick parquet sanity check before moving on:
+
+```bash
+uv run python <<'PY'
+import json, pyarrow.parquet as pq, collections
+from pathlib import Path
+
+out = Path("datasets/vial_rollout_v1_v21")       # or your path
+info = json.loads((out / "meta/info.json").read_text())
+print(f"Episodes: {info['total_episodes']}  Frames: {info['total_frames']}  FPS: {info['fps']}")
+for col in ["intervention","reward","reward_label","value_label","adv_ind"]:
+    assert col in info["features"], f"missing {col}"
+    print(f"  feature {col:14s} dtype={info['features'][col]['dtype']}")
+
+n_success = 0
+n_intv = 0
+n_total = 0
+for pq_file in sorted((out / "data").rglob("*.parquet")):
+    t = pq.read_table(pq_file).to_pandas()
+    n_total += len(t)
+    n_intv  += int(t["intervention"].sum())
+    if t["reward"].sum() == 1.0:
+        n_success += 1
+print(f"Successful episodes: {n_success}")
+print(f"Intervention rate:   {100*n_intv/n_total:.1f}%")
+PY
+```
+
+Expected output for the reference dataset:
+
+```text
+Episodes: 10  Frames: 21286  FPS: 30
+  feature intervention   dtype=int64
+  feature reward         dtype=float32
+  feature reward_label   dtype=float32
+  feature value_label    dtype=float32
+  feature adv_ind        dtype=string
+Successful episodes: 3
+Intervention rate:   32.7%
+```
+
+Sanity bands for a typical DAgger run:
+
+- **Intervention rate** between 10% and 60%. Too low → operator wasn't
+  catching failures; too high → policy is too far from the task,
+  consider re-SFT.
+- **Success rate** between 20% and 70%. Pure-success or pure-failure
+  data collapses the value distribution downstream — need both classes.
+
+## Why two converters
+
+| Step      | Layout                                                                       | Notes                                                                                                              |
+|-----------|------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------|
+| v3.0      | `data/chunk-000/file-NNN.parquet`, `videos/{cam}/chunk-000/file-NNN.mp4`, `meta/episodes/chunk-000/file-NNN.parquet` | What limb's converter writes. Standard modern LeRobot layout.                                                       |
+| v2.1      | `data/chunk-000/episode_NNNNNN.parquet`, `videos/chunk-000/{cam}/episode_NNNNNN.mp4`, `meta/episodes.jsonl`         | What pistar / openpi's lerobot 0.1.0 expects. The v2.1 data parquets are **symlinks** back at the v3.0 originals. |
+
+Since v2.1 data is symlinked, moving or deleting `datasets/<task>_pistar_v1/`
+later breaks `datasets/<task>_pistar_v1_v21/`. If you need a portable
+copy use `cp -rL`.
+
+## Symlink into pistar's lerobot cache
+
+Pistar resolves `repo_id="local/<name>"` via the lerobot cache. **One
+symlink** required before any training:
+
+```bash
+mkdir -p ~/.cache/huggingface/lerobot/local
+ln -sfn ~/limb/datasets/vial_rollout_v1_v21 \
+       ~/.cache/huggingface/lerobot/local/vial_rollout_v1_v21
+
+# verify
+ls ~/.cache/huggingface/lerobot/local/vial_rollout_v1_v21/meta/info.json
+# → must print the path
+```
+
+Without this symlink pistar's training scripts fall through to a
+HuggingFace Hub lookup and 404 with a misleading `RepositoryNotFoundError`.
+
+## Next
+
+Train the initial SFT pi0.5 → [Stage 2](stage2_sft.md).

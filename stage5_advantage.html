@@ -1,0 +1,495 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stage 5 — Advantage labeling (VLM relabel of adv_ind) &mdash; RECAP on YAM</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+      <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=2709fde1"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="_static/copybutton.js?v=e679931d"></script>
+      <script src="_static/design-tabs.js?v=f930bc37"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Stage 6 — Full RECAP fine-tune" href="stage6_recap.html" />
+    <link rel="prev" title="Stage 4 — VLM value model training (pistar, patched)" href="stage4_value.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            RECAP on YAM
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Pipeline stages</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="overview.html">Overview</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="overview.html#what-recap-is">What RECAP is</a></li>
+<li class="toctree-l2"><a class="reference internal" href="overview.html#the-six-stages">The six stages</a></li>
+<li class="toctree-l2"><a class="reference internal" href="overview.html#how-our-pipeline-differs-from-rlinf-and-evo-rl">How our pipeline differs from RLinf and Evo-RL</a></li>
+<li class="toctree-l2"><a class="reference internal" href="overview.html#architecture-at-a-glance">Architecture at a glance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="overview.html#when-to-use-which-checkpoint">When to use which checkpoint</a></li>
+<li class="toctree-l2"><a class="reference internal" href="overview.html#yam-trainconfig-reference">YAM TrainConfig reference</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="overview.html#picking-one">Picking one</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="setup.html">Setup</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="setup.html#repositories">Repositories</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="setup.html#clone">Clone</a></li>
+<li class="toctree-l3"><a class="reference internal" href="setup.html#patches-you-must-apply-to-pistar">Patches you must apply to pistar</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="setup.html#python-environments">Python environments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="setup.html#vlm-checkpoint-for-stage-4">VLM checkpoint (for Stage 4)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="setup.html#pi0-5-base-weights-for-stage-2-sft">pi0.5 base weights (for Stage 2 SFT)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="setup.html#hardware">Hardware</a></li>
+<li class="toctree-l2"><a class="reference internal" href="setup.html#verify-everything-is-wired">Verify everything is wired</a></li>
+<li class="toctree-l2"><a class="reference internal" href="setup.html#next">Next</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="stage0_collection.html">Stage 0 — DAgger collection (limb)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="stage0_collection.html#prerequisites">Prerequisites</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage0_collection.html#the-command">The command</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage0_collection.html#phase-machine-foot-pedal">Phase machine (foot pedal)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage0_collection.html#episode-lifecycle-keyboard">Episode lifecycle (keyboard)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage0_collection.html#what-gets-recorded">What gets recorded</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage0_collection.html#hygiene-rules">Hygiene rules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage0_collection.html#scale-guidance-from-the-pi0-6-paper">Scale guidance (from the pi0.6 paper)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage0_collection.html#reference-dataset">Reference dataset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage0_collection.html#next">Next</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="stage1_conversion.html">Stage 1 — Convert to LeRobot v2.1 with five RECAP columns</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="stage1_conversion.html#the-five-recap-columns">The five RECAP columns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage1_conversion.html#command">Command</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="stage1_conversion.html#flags-that-matter-for-pi0-6">Flags that matter for pi0.6</a></li>
+<li class="toctree-l3"><a class="reference internal" href="stage1_conversion.html#sft-demo-variant">SFT demo variant</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="stage1_conversion.html#verify-the-conversion">Verify the conversion</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage1_conversion.html#why-two-converters">Why two converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage1_conversion.html#symlink-into-pistars-lerobot-cache">Symlink into pistar’s lerobot cache</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage1_conversion.html#next">Next</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="stage2_sft.html">Stage 2 — Initial SFT (openpi, full fine-tune)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="stage2_sft.html#required-inputs">Required inputs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage2_sft.html#add-a-yam-trainconfig-to-openpi">Add a YAM <code class="docutils literal notranslate"><span class="pre">TrainConfig</span></code> to openpi</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage2_sft.html#compute-norm-stats-25-min-one-time">Compute norm stats (~25 min, one-time)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage2_sft.html#train-full-fine-tune-3-h-on-8-h100">Train (full fine-tune, ~3 h on 8× H100)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage2_sft.html#push-to-huggingface-recommended">Push to HuggingFace (recommended)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage2_sft.html#stage-3-stage-6-input-what-they-need-from-here">Stage 3 / Stage 6 input — what they need from here</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage2_sft.html#gotchas-from-openpi-yam-finetune-md">Gotchas (from openpi <code class="docutils literal notranslate"><span class="pre">yam_finetune.md</span></code>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage2_sft.html#next">Next</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="stage3_lora.html">Stage 3 — pi0.6 fine-tune from SFT (no VLM yet)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="stage3_lora.html#what-the-configs-look-like">What the configs look like</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage3_lora.html#train">Train</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage3_lora.html#lora-variant">LoRA variant</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage3_lora.html#what-this-gives-you-what-it-doesnt">What this gives you, what it doesn’t</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage3_lora.html#next">Next</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="stage4_value.html">Stage 4 — VLM value model training (pistar, patched)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="stage4_value.html#required-inputs">Required inputs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage4_value.html#quick-smoke-test-5-steps-30-s">Quick smoke test (5 steps, ~30 s)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage4_value.html#real-training-run">Real training run</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage4_value.html#tuning-knobs">Tuning knobs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage4_value.html#what-the-saved-checkpoint-contains">What the saved checkpoint contains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage4_value.html#healthy-training-signals">Healthy training signals</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage4_value.html#common-failures">Common failures</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage4_value.html#next">Next</a></li>
+</ul>
+</li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Stage 5 — Advantage labeling (VLM relabel of <code class="docutils literal notranslate"><span class="pre">adv_ind</span></code>)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#make-a-standalone-copy-of-the-dataset">Make a standalone copy of the dataset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#what-it-does">What it does</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#command">Command</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#flag-explanations">Flag explanations</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#tuning">Tuning</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#verify-the-relabel">Verify the relabel</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#operating-principle-intuition">Operating principle (intuition)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#next">Next</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="stage6_recap.html">Stage 6 — Full RECAP fine-tune</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="stage6_recap.html#inputs">Inputs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage6_recap.html#the-recap-trainconfig">The <code class="docutils literal notranslate"><span class="pre">_recap</span></code> TrainConfig</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage6_recap.html#command">Command</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="stage6_recap.html#how-to-verify-at-runtime-that-the-vlm-labeled-dataset-is-loading">How to verify at runtime that the VLM-labeled dataset is loading</a></li>
+<li class="toctree-l3"><a class="reference internal" href="stage6_recap.html#continue-from-a-stage-3-checkpoint-instead-of-the-sft">Continue from a Stage 3 checkpoint instead of the SFT</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="stage6_recap.html#whats-different-from-stage-3-no-code-only-data">What’s different from Stage 3 (no code, only data)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage6_recap.html#healthy-signs-at-stage-6">Healthy signs at Stage 6</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage6_recap.html#multi-iteration-loop-paper-scale">Multi-iteration loop (paper-scale)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage6_recap.html#what-goes-wrong-and-what-to-do">What goes wrong, and what to do</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage6_recap.html#next">Next</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="evaluation.html">Evaluation — Serve + deploy via limb</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="evaluation.html#serve">Serve</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="evaluation.html#match-the-model-variant">Match the model variant</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="evaluation.html#limb-side-add-adv-ind-positive-to-the-obs-transform">limb side — add <code class="docutils literal notranslate"><span class="pre">adv_ind:</span> <span class="pre">&quot;positive&quot;</span></code> to the obs transform</a></li>
+<li class="toctree-l2"><a class="reference internal" href="evaluation.html#whats-served-vs-what-limb-sends">What’s served vs what limb sends</a></li>
+<li class="toctree-l2"><a class="reference internal" href="evaluation.html#quantitative-evaluation">Quantitative evaluation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="evaluation.html#common-deployment-issues">Common deployment issues</a></li>
+<li class="toctree-l2"><a class="reference internal" href="evaluation.html#closed-loop-feeding-evaluation-back-into-training">Closed loop — feeding evaluation back into training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="evaluation.html#next">Next</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="patches.html">Patches reference — making pistar Stage 4 / 5 actually run</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="patches.html#patch-summary">Patch summary</a></li>
+<li class="toctree-l2"><a class="reference internal" href="patches.html#patches-in-detail">Patches in detail</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="patches.html#valuemodelweightloader">1. <code class="docutils literal notranslate"><span class="pre">ValueModelWeightLoader</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="patches.html#missing-gemma-gm-data-directory">2. Missing <code class="docutils literal notranslate"><span class="pre">gemma/gm/data/</span></code> directory</a></li>
+<li class="toctree-l3"><a class="reference internal" href="patches.html#kauldron-ktyping-kauldron-typing">3. <code class="docutils literal notranslate"><span class="pre">kauldron.ktyping</span></code> → <code class="docutils literal notranslate"><span class="pre">kauldron.typing</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="patches.html#etils-edc-contextstack-in-dtype-params-py">4. &amp; 5. <code class="docutils literal notranslate"><span class="pre">etils.edc.ContextStack</span></code> in <code class="docutils literal notranslate"><span class="pre">_dtype_params.py</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="patches.html#openpi-shared-console-progress-stubs">6. &amp; 7. <code class="docutils literal notranslate"><span class="pre">openpi.shared.{console,progress}</span></code> stubs</a></li>
+<li class="toctree-l3"><a class="reference internal" href="patches.html#dataconfig-field-rename-action-key">8. &amp; 9. <code class="docutils literal notranslate"><span class="pre">DataConfig</span></code> field rename + action key</a></li>
+<li class="toctree-l3"><a class="reference internal" href="patches.html#create-value-data-loader">10. <code class="docutils literal notranslate"><span class="pre">create_value_data_loader</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="patches.html#dataloaderimpl-dataset-len">11. <code class="docutils literal notranslate"><span class="pre">DataLoaderImpl.dataset</span></code> + <code class="docutils literal notranslate"><span class="pre">__len__</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="patches.html#trainstate-flax-struct-pytreenode">12. <code class="docutils literal notranslate"><span class="pre">TrainState</span></code> → <code class="docutils literal notranslate"><span class="pre">flax.struct.PyTreeNode</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="patches.html#valuedataloaderimpl-gemmavaluetokenizer-tokenize-extra-args-int-step-for-tqdm">13. <code class="docutils literal notranslate"><span class="pre">_ValueDataLoaderImpl</span></code>, <code class="docutils literal notranslate"><span class="pre">GemmaValueTokenizer.tokenize</span></code> extra args, <code class="docutils literal notranslate"><span class="pre">int(step)</span></code> for tqdm</a></li>
+<li class="toctree-l3"><a class="reference internal" href="patches.html#same-gaps-in-label-advantage-from-vlm-py-stage-5">14. &amp; 15. Same gaps in <code class="docutils literal notranslate"><span class="pre">label_advantage_from_vlm.py</span></code> (Stage 5)</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="patches.html#end-to-end-verification">End-to-end verification</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">RECAP on YAM</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content style-external-links">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Stage 5 — Advantage labeling (VLM relabel of <code class="docutils literal notranslate"><span class="pre">adv_ind</span></code>)</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/stage5_advantage.md.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul><div class="rst-breadcrumbs-buttons" role="navigation" aria-label="Sequential page navigation">
+        <a href="stage4_value.html" class="btn btn-neutral float-left" title="Stage 4 — VLM value model training (pistar, patched)" accesskey="p"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="stage6_recap.html" class="btn btn-neutral float-right" title="Stage 6 — Full RECAP fine-tune" accesskey="n">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+  </div>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="stage-5-advantage-labeling-vlm-relabel-of-adv-ind">
+<h1>Stage 5 — Advantage labeling (VLM relabel of <code class="docutils literal notranslate"><span class="pre">adv_ind</span></code>)<a class="headerlink" href="#stage-5-advantage-labeling-vlm-relabel-of-adv-ind" title="Link to this heading"></a></h1>
+<p>Use the value model from <a class="reference internal" href="stage4_value.html"><span class="std std-doc">Stage 4</span></a> to compute an
+N-step advantage per autonomous frame, percentile-binarize, and write
+the result back into the dataset’s <code class="docutils literal notranslate"><span class="pre">adv_ind</span></code> column <strong>in place</strong>.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>This step <strong>modifies the v2.1 dataset on disk</strong> — <code class="docutils literal notranslate"><span class="pre">adv_ind</span></code> values are
+overwritten for every autonomous frame. <strong>Always run it against a copy</strong>,
+not the original from <a class="reference internal" href="stage1_conversion.html"><span class="std std-doc">Stage 1</span></a>. That way
+<a class="reference internal" href="stage3_lora.html"><span class="std std-doc">Stage 3</span></a> (pre-VLM LoRA-from-SFT) and
+<a class="reference internal" href="stage6_recap.html"><span class="std std-doc">Stage 6</span></a> (post-VLM full RECAP) can both re-use their
+respective dataset variants for comparison and re-runs.</p>
+</div>
+<section id="make-a-standalone-copy-of-the-dataset">
+<h2>Make a standalone copy of the dataset<a class="headerlink" href="#make-a-standalone-copy-of-the-dataset" title="Link to this heading"></a></h2>
+<p>The v2.1 layout symlinks its data parquets back to the v3.0 originals
+(see <a class="reference internal" href="stage1_conversion.html"><span class="std std-doc">Stage 1</span></a> § <em>Why two converters</em>). A naive
+<code class="docutils literal notranslate"><span class="pre">cp</span> <span class="pre">-r</span></code> would preserve those symlinks and Stage 5 would write <em>through</em>
+them, corrupting the v3.0 source. Use <strong><code class="docutils literal notranslate"><span class="pre">cp</span> <span class="pre">-rL</span></code></strong> to materialize the
+parquets into a standalone tree, then register a fresh lerobot-cache
+symlink for the copy:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>~/limb/datasets
+
+<span class="c1"># 1. Materialize a copy (follows symlinks → standalone files, ~54 MB)</span>
+cp<span class="w"> </span>-rL<span class="w"> </span>vial_rollout_v1_v21<span class="w"> </span>vial_rollout_v1_v21_vlm_label
+
+<span class="c1"># 2. Register the copy in pistar&#39;s lerobot cache so it resolves</span>
+<span class="c1">#    `repo_id=&quot;local/vial_rollout_v1_v21_vlm_label&quot;` to this path</span>
+ln<span class="w"> </span>-sfn<span class="w"> </span>~/limb/datasets/vial_rollout_v1_v21_vlm_label<span class="w"> </span><span class="se">\</span>
+<span class="w">       </span>~/.cache/huggingface/lerobot/local/vial_rollout_v1_v21_vlm_label
+
+<span class="c1"># 3. Confirm the copy is standalone (and that the original is reachable)</span>
+python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;</span>
+<span class="s2">import pyarrow.parquet as pq, glob, collections</span>
+<span class="s2">for label, root in [(&#39;original&#39;,</span>
+<span class="s2">                     &#39;~/limb/datasets/vial_rollout_v1_v21&#39;),</span>
+<span class="s2">                    (&#39;copy&#39;,</span>
+<span class="s2">                     &#39;~/limb/datasets/vial_rollout_v1_v21_vlm_label&#39;)]:</span>
+<span class="s2">    f = sorted(glob.glob(f&#39;{root}/data/**/*.parquet&#39;, recursive=True))[0]</span>
+<span class="s2">    print(label, &#39;→&#39;, dict(collections.Counter(pq.read_table(f, columns=[&#39;adv_ind&#39;])[&#39;adv_ind&#39;].to_pylist())))</span>
+<span class="s2">&quot;</span>
+<span class="c1"># Before Stage 5: both labels print the same {none: …, positive: …} distribution.</span>
+<span class="c1"># After Stage 5: original is unchanged; copy has {positive: …, negative: …, none == 0}.</span>
+</pre></div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>Subsequent RECAP iterations follow the same pattern: each round, make a
+<em>new</em> copy (e.g. <code class="docutils literal notranslate"><span class="pre">..._vlm_label_v2</span></code>) before running Stage 5 so you can
+compare iteration N against N-1 and roll back if a relabel goes bad.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><code class="docutils literal notranslate"><span class="pre">label_advantage_from_vlm.py</span></code> is a separate script that ships its own
+copy of the data-config block and the <code class="docutils literal notranslate"><span class="pre">GemmaValueTokenizer</span></code> class, so
+the API-drift fixes from Stage 4 don’t reach it. You must apply
+<strong>patches 14 and 15</strong> from <a class="reference internal" href="patches.html"><span class="std std-doc">the patches reference</span></a> to this
+script too before running.</p>
+</div>
+</section>
+<section id="what-it-does">
+<h2>What it does<a class="headerlink" href="#what-it-does" title="Link to this heading"></a></h2>
+<p>Per pistar’s <code class="docutils literal notranslate"><span class="pre">scripts/label_advantage_from_vlm.py</span></code> docstring (verbatim):</p>
+<blockquote>
+<div><ol class="arabic simple">
+<li><p>Classify each episode by <code class="docutils literal notranslate"><span class="pre">intervention</span></code>: all-1 episodes are demos
+and are skipped; episodes with any 0 are rollouts and are fully
+relabeled.</p></li>
+<li><p>Run VLM value inference for rollout rows and the lookahead endpoint
+rows needed to compute their N-step advantage.</p></li>
+<li><p>Convert 201-dim logits → softmax → expectation over supports in
+<code class="docutils literal notranslate"><span class="pre">[-1.0,</span> <span class="pre">0.0]</span></code>.</p></li>
+<li><p>Compute N-step Advantage per rollout time step:
+<code class="docutils literal notranslate"><span class="pre">A_t</span> <span class="pre">=</span> <span class="pre">sum_{k=0}^{N-1}</span> <span class="pre">r_{t+k}</span> <span class="pre">+</span> <span class="pre">V_{t+N}</span> <span class="pre">-</span> <span class="pre">V_t</span></code>.</p></li>
+<li><p>Compute the percentile threshold over rollout advantages of
+non-intervention steps.</p></li>
+<li><p>For rollout rows only:</p>
+<ul class="simple">
+<li><p>if <code class="docutils literal notranslate"><span class="pre">intervention</span> <span class="pre">=</span> <span class="pre">1</span></code>, set <code class="docutils literal notranslate"><span class="pre">adv_ind</span> <span class="pre">=</span> <span class="pre">positive</span></code></p></li>
+<li><p>if <code class="docutils literal notranslate"><span class="pre">intervention</span> <span class="pre">=</span> <span class="pre">0</span></code>, mark the configured top percentage as
+<code class="docutils literal notranslate"><span class="pre">positive</span></code>, otherwise <code class="docutils literal notranslate"><span class="pre">negative</span></code>.</p></li>
+</ul>
+</li>
+</ol>
+<p>Existing labels on rollout rows are overwritten; demo rows are
+preserved.</p>
+</div></blockquote>
+<p>For your dataset that means: intervention frames stay <code class="docutils literal notranslate"><span class="pre">positive</span></code>;
+autonomous frames (previously all <code class="docutils literal notranslate"><span class="pre">none</span></code>) are now either <code class="docutils literal notranslate"><span class="pre">positive</span></code> or
+<code class="docutils literal notranslate"><span class="pre">negative</span></code> based on whether the VLM thinks they were high-value
+transitions.</p>
+</section>
+<section id="command">
+<h2>Command<a class="headerlink" href="#command" title="Link to this heading"></a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>~/limb/pistar
+<span class="nb">source</span><span class="w"> </span>~/.venvs/pistar/bin/activate
+
+python<span class="w"> </span>scripts/label_advantage_from_vlm.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--data_dir<span class="w">   </span>~/limb/datasets/vial_rollout_v1_v21_vlm_label<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--checkpoint_dir<span class="w"> </span>checkpoints/value_model/yam_vial_v1/step_00005000<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--tokenizer_path<span class="w"> </span>~/vlm_ckpt/tokenizer.model<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--batch_size<span class="w"> </span><span class="m">8</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--lookahead<span class="w"> </span><span class="m">50</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--human_col<span class="w"> </span>intervention<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--adv_col<span class="w"> </span>adv_ind<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--base_image_col<span class="w">   </span>observation.images.head_camera<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--wrist_image_col<span class="w">  </span>observation.images.left_wrist_camera<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--right_wrist_image_col<span class="w"> </span>observation.images.right_wrist_camera<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--use_ema
+</pre></div>
+</div>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p><code class="docutils literal notranslate"><span class="pre">--data_dir</span></code> points at the <strong>copy</strong> (<code class="docutils literal notranslate"><span class="pre">..._vlm_label</span></code>), not the
+<a class="reference internal" href="stage1_conversion.html"><span class="std std-doc">Stage 1</span></a> original. The original stays unchanged
+so Stage 3 reproductions and rollback comparisons still work.</p>
+<p><code class="docutils literal notranslate"><span class="pre">--checkpoint_dir</span></code> accepts a specific step (recommended) so the script
+loads the version you trained for, not the latest auto-pick. Runs on
+~21k frames take ~10–12 min at batch 8 on a single 24 GB GPU; multi-GPU
+will scale.</p>
+</div>
+<section id="flag-explanations">
+<h3>Flag explanations<a class="headerlink" href="#flag-explanations" title="Link to this heading"></a></h3>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Flag</p></th>
+<th class="head"><p>Notes</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--data_dir</span></code></p></td>
+<td><p>Same v2.1 dataset Stage 4 trained on. Overwritten in place — back up first.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--checkpoint_dir</span></code></p></td>
+<td><p>Stage 4 output dir. Picks the latest <code class="docutils literal notranslate"><span class="pre">step_*</span></code> automatically; override with <code class="docutils literal notranslate"><span class="pre">--checkpoint_name</span> <span class="pre">step_XXXXX</span></code> for a specific one.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--use_ema</span></code></p></td>
+<td><p>Use the EMA-smoothed params (<code class="docutils literal notranslate"><span class="pre">ema_params</span></code> subtree). Pistar default; generally less noisy than the live <code class="docutils literal notranslate"><span class="pre">params</span></code> copy.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--lookahead</span> <span class="pre">50</span></code></p></td>
+<td><p>N-step horizon for <code class="docutils literal notranslate"><span class="pre">A_t</span></code>. Pistar default. Drop to 10–20 for short episodes.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--human_col</span> <span class="pre">intervention</span></code></p></td>
+<td><p>Our column name (limb’s <code class="docutils literal notranslate"><span class="pre">--pistar</span></code> convention). Pistar’s default.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--adv_col</span> <span class="pre">adv_ind</span></code></p></td>
+<td><p>Our column name. Pistar’s default.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--base_image_col</span></code></p></td>
+<td><p>Pass with dots — pistar’s <code class="docutils literal notranslate"><span class="pre">_column_candidates</span></code> uses dotted names verbatim (no <code class="docutils literal notranslate"><span class="pre">observation/</span></code> prefix expansion).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--wrist_image_col</span></code></p></td>
+<td><p>Same convention.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--right_wrist_image_col</span></code></p></td>
+<td><p>Our second wrist; pistar’s value model only consumes one wrist, but <code class="docutils literal notranslate"><span class="pre">label_advantage_from_vlm.py</span></code> exposes both for the value calc.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="tuning">
+<h3>Tuning<a class="headerlink" href="#tuning" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">--positive_ratio</span> <span class="pre">0.3</span></code> (default in pistar): top 30% of autonomous-frame
+advantages become <code class="docutils literal notranslate"><span class="pre">positive</span></code>. Bump to 0.2 for a stricter positive set.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--batch_size</span></code>: increase for faster inference if your GPU has the
+memory. On a 24 GB consumer GPU 8 is comfortable; on H100 set 32–64.</p></li>
+</ul>
+</section>
+</section>
+<section id="verify-the-relabel">
+<h2>Verify the relabel<a class="headerlink" href="#verify-the-relabel" title="Link to this heading"></a></h2>
+<p>After the run, every frame’s <code class="docutils literal notranslate"><span class="pre">adv_ind</span></code> should be in
+<code class="docutils literal notranslate"><span class="pre">{positive,</span> <span class="pre">negative,</span> <span class="pre">none}</span></code> — and on rollout-only datasets there should
+be <strong>zero <code class="docutils literal notranslate"><span class="pre">none</span></code>s</strong> (every autonomous frame got classified).</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span><span class="s">&lt;&lt;&#39;PY&#39;</span>
+<span class="s">import glob, pyarrow.parquet as pq, collections</span>
+
+<span class="s">DATA = &quot;~/limb/datasets/vial_rollout_v1_v21_vlm_label&quot;</span>
+
+<span class="s">counts = collections.Counter()</span>
+<span class="s">intervention_pos, intervention_neg = 0, 0</span>
+<span class="s">auto_pos, auto_neg, auto_none = 0, 0, 0</span>
+<span class="s">for f in sorted(glob.glob(f&quot;{DATA}/data/**/*.parquet&quot;, recursive=True)):</span>
+<span class="s">    t = pq.read_table(f).to_pandas()</span>
+<span class="s">    counts.update(t[&quot;adv_ind&quot;])</span>
+<span class="s">    iv = t[&quot;intervention&quot;].astype(bool).values</span>
+<span class="s">    av = t[&quot;adv_ind&quot;].values</span>
+<span class="s">    intervention_pos += int(((iv) &amp; (av == &quot;positive&quot;)).sum())</span>
+<span class="s">    intervention_neg += int(((iv) &amp; (av == &quot;negative&quot;)).sum())</span>
+<span class="s">    auto_pos  += int(((~iv) &amp; (av == &quot;positive&quot;)).sum())</span>
+<span class="s">    auto_neg  += int(((~iv) &amp; (av == &quot;negative&quot;)).sum())</span>
+<span class="s">    auto_none += int(((~iv) &amp; (av == &quot;none&quot;)).sum())</span>
+<span class="s">print(&quot;adv_ind global:&quot;, dict(counts))</span>
+<span class="s">print(f&quot;intervention=1 frames: {intervention_pos} positive  {intervention_neg} negative&quot;)</span>
+<span class="s">print(f&quot;intervention=0 frames: {auto_pos} positive  {auto_neg} negative  {auto_none} none&quot;)</span>
+<span class="s">PY</span>
+</pre></div>
+</div>
+<p><strong>Actual output on the reference 10-episode dataset after a clean Stage 5
+run</strong> (<code class="docutils literal notranslate"><span class="pre">--lookahead</span> <span class="pre">50</span> <span class="pre">--use_ema</span></code>, default <code class="docutils literal notranslate"><span class="pre">--positive_ratio</span> <span class="pre">0.3</span></code>):</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>adv_ind global: {&#39;negative&#39;: 10022, &#39;positive&#39;: 11264}
+intervention=1 frames: 6968 positive    0 negative
+intervention=0 frames: 4296 positive   10022 negative   0 none
+</pre></div>
+</div>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">intervention=1</span> <span class="pre">...</span> <span class="pre">0</span> <span class="pre">negative</span></code> — intervention frames are never
+negative (the script preserves them as positive).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">intervention=0</span> <span class="pre">...</span> <span class="pre">0</span> <span class="pre">none</span></code> — every autonomous frame got a verdict.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">4296</span> <span class="pre">/</span> <span class="pre">(4296</span> <span class="pre">+</span> <span class="pre">10022)</span> <span class="pre">=</span> <span class="pre">30.0%</span></code> of autonomous frames are positive —
+matches <code class="docutils literal notranslate"><span class="pre">--positive_ratio</span> <span class="pre">0.3</span></code> to the percent.</p></li>
+</ul>
+<p>If your run produces non-zero <code class="docutils literal notranslate"><span class="pre">none</span></code> counts under <code class="docutils literal notranslate"><span class="pre">intervention=0</span></code>, the
+script crashed mid-run; re-run (the relabel is idempotent).</p>
+<p>If <code class="docutils literal notranslate"><span class="pre">none</span></code> count is non-zero after Stage 5, the script crashed mid-run.
+Re-run; the relabel is idempotent.</p>
+</section>
+<section id="operating-principle-intuition">
+<h2>Operating principle (intuition)<a class="headerlink" href="#operating-principle-intuition" title="Link to this heading"></a></h2>
+<p>The value model has learned <code class="docutils literal notranslate"><span class="pre">V(o)</span> <span class="pre">≈</span> <span class="pre">how-close-to-goal-is-this-state</span></code>.
+N-step advantage approximates <code class="docutils literal notranslate"><span class="pre">did</span> <span class="pre">the</span> <span class="pre">policy</span> <span class="pre">actually</span> <span class="pre">improve</span> <span class="pre">over</span> <span class="pre">the</span> <span class="pre">next</span> <span class="pre">N</span> <span class="pre">steps?</span></code> — positive advantage means the autonomous trajectory was
+making progress, negative advantage means it was making things worse.</p>
+<p>Stage 6 then learns from this:</p>
+<ul class="simple">
+<li><p>Conditioned <code class="docutils literal notranslate"><span class="pre">positive</span></code> → the policy reproduces frames that the value
+model considered progress (correction frames + good autonomous runs).</p></li>
+<li><p>Conditioned <code class="docutils literal notranslate"><span class="pre">negative</span></code> → the policy <em>avoids</em> the action distribution
+the bad autonomous frames came from.</p></li>
+</ul>
+<p>At inference you always condition <code class="docutils literal notranslate"><span class="pre">positive</span></code>.</p>
+</section>
+<section id="next">
+<h2>Next<a class="headerlink" href="#next" title="Link to this heading"></a></h2>
+<p>Run the final pi0.6 fine-tune → <a class="reference internal" href="stage6_recap.html"><span class="std std-doc">Stage 6</span></a>.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="stage4_value.html" class="btn btn-neutral float-left" title="Stage 4 — VLM value model training (pistar, patched)" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="stage6_recap.html" class="btn btn-neutral float-right" title="Stage 6 — Full RECAP fine-tune" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, limb + pistar contributors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

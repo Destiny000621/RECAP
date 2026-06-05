@@ -1,0 +1,85 @@
+# RECAP on YAM
+
+End-to-end documentation for our **RECAP** (RL with Experience and
+Corrections via Advantage-conditioned Policies) implementation on YAM
+bimanual arms. RECAP is the offline RL algorithm in **pi0.6**
+([π★₀.₆: a VLA That Learns From Experience](https://arxiv.org/abs/2511.14759),
+Physical Intelligence et al.).
+
+This site documents the *full pipeline we actually run* on real hardware:
+
+- **Data collection** in [`limb`](https://github.com/TToTMooN/limb) — DAgger
+  sessions with a three-state phase machine (AUTONOMOUS / PAUSED /
+  CORRECTING) and operator-driven episode lifecycle.
+- **Data conversion** via `limb convert-lerobot --pistar` — produces a
+  LeRobot v3.0 dataset with the five RECAP columns
+  (`intervention`, `reward`, `reward_label`, `value_label`, `adv_ind`).
+- **Training** in [pistar](https://github.com/ybpy/pistar) (JAX) — six
+  stages from SFT through full RECAP, with **15 patches** we wrote on
+  top of upstream pistar to make Stages 4 + 5 (VLM value model + VLM
+  advantage labeling) actually runnable.
+- **Evaluation** through `openpi/scripts/serve_policy.py` and limb's
+  `OpenPIClient` — the trained pi0.6 checkpoint serves through the
+  standard openpi wire protocol with no limb-side changes.
+
+For the algorithm itself read the [pi★0.6 paper](https://arxiv.org/abs/2511.14759).
+For the reference RECAP pipeline structure see the
+[RLinf RECAP page](https://rlinf.readthedocs.io/en/latest/rst_source/examples/embodied/recap.html);
+RLinf is sim-only (LIBERO), while this site documents a real-robot
+implementation.
+
+## Quick-start path
+
+The shortest path from a fresh checkout to a working pi0.6 checkpoint on
+YAM. Each link goes to a dedicated page with full commands.
+
+```{toctree}
+:maxdepth: 1
+:caption: Pipeline stages
+
+overview
+setup
+stage0_collection
+stage1_conversion
+stage2_sft
+stage3_lora
+stage4_value
+stage5_advantage
+stage6_recap
+evaluation
+```
+
+```{toctree}
+:maxdepth: 1
+:caption: Reference
+
+patches
+```
+
+## What's adapted from where
+
+| Component                  | Origin                              | Adaptation for YAM |
+|----------------------------|-------------------------------------|--------------------|
+| Algorithm                  | pi0.6 / RECAP paper                 | unchanged                                                                                              |
+| Code base                  | [ybpy/pistar](https://github.com/ybpy/pistar) (JAX fork of openpi) | added YAM `TrainConfig`s, Aloha-data adv_ind passthrough, 13 upstream-bug patches                |
+| Collection stack           | [limb](https://github.com/TToTMooN/limb) (YAM control)            | added DAgger session lifecycle, 6 pistar-shaped converter helpers, `--pistar` / `--pistar-demo` flags |
+| Policy serving             | [openpi `serve_policy.py`](https://github.com/Physical-Intelligence/openpi) | unchanged — pi0.6 checkpoints serve through it natively (no CFG-sampler shim needed)              |
+| VLM value model checkpoint | [ybpy/vlm_ckpt](https://huggingface.co/ybpy/vlm_ckpt) (HF) / Google Drive | unchanged                                                                                              |
+
+## Why pistar, not RLinf
+
+Both pistar and RLinf implement pi0.6 / RECAP and use the same value
+model (SigLIP-So400m + Gemma3-270M + 201-bin C51 head over `[-1, 0]`).
+The difference is the labeling pipeline and the validation regime:
+
+| Dimension                     | RLinf                  | pistar                                         |
+|-------------------------------|------------------------|------------------------------------------------|
+| Backend                       | PyTorch                | **JAX**                                        |
+| Relation to openpi            | vendors openpi         | **fork of openpi**                             |
+| Validation                    | LIBERO simulation only | **real robot** (SO-101, AgileX PiPER)           |
+| Advantage labeling            | quantile from value model with no auxiliary labels | **VLM-based** `value_label` / `reward_label` (per-frame supervision) |
+| Conditioning at serving       | CFG sampler required   | **`adv_ind` is just a tokenizer input** — vanilla `serve_policy.py` works                                  |
+
+For real-robot YAM the pistar path is a closer fit. It is also
+upstream-broken on `main` for Stages 4 + 5; we made them work with 15
+targeted patches documented on [the patches page](patches.md).

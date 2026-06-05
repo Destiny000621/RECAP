@@ -1,0 +1,162 @@
+# Evaluation — Serve + deploy via limb
+
+Serve the trained pi0.6 checkpoint with openpi's `serve_policy.py` and
+drive YAM through limb's existing DAgger client. Because pistar's
+`adv_ind` rides through the **standard openpi tokenizer**, there is
+**no CFG-sampler shim required** — the same `serve_policy.py` that
+serves a Stage 2 SFT works for a Stage 6 RECAP checkpoint.
+
+## Serve
+
+```bash
+cd ~/limb/pistar
+source ~/.venvs/pistar/bin/activate
+
+# Stage 6 (full fine-tune):
+python scripts/serve_policy.py --port=8111 policy:checkpoint \
+  --policy.config=pi06_yam_vial_30fps_from_sft_infer \
+  --policy.dir=checkpoints/pi06_yam_vial_30fps_from_sft/stage6_v1/<step>
+
+# Stage 3 LoRA-from-SFT smoke run:
+python scripts/serve_policy.py --port=8111 policy:checkpoint \
+  --policy.config=pi06_yam_vial_30fps_lora_from_sft_infer \
+  --policy.dir=checkpoints/pi06_yam_vial_30fps_lora_from_sft/stage3_v0/<step>
+```
+
+```{warning}
+The **`_infer` suffix matters**. The infer-variant TrainConfig has
+`adv_ind_dropout=False` so the positive tag is always present at
+inference. Using the non-infer variant at serving time means the
+tokenizer randomly drops `adv_ind` 90% of the time and you silently
+lose the RECAP conditioning.
+```
+
+### Match the model variant
+
+- LoRA training → must serve through the matching `_lora_*_infer` config
+  (LoRA-variant param tree differs from full-fine-tune tree; restoring
+  one with the other's config fails).
+- Full fine-tune → matching `_from_sft_infer` config.
+
+## limb side — add `adv_ind: "positive"` to the obs transform
+
+For pistar / pi0.6 RECAP checkpoints, limb's `OpenPIObsTransform` must
+emit `adv_ind` on every wire observation. Without it the server's
+`TokenizePrompt` raises `ValueError: Adv_ind is required.`
+(see [transforms.py:266](https://github.com/ybpy/pistar/blob/main/src/openpi/transforms.py#L266)
+in pistar). The token's value at serving time is fixed: `"positive"`.
+
+```yaml
+# configs/yam_pi0_bimanual.yaml  (or your dagger config)
+agent:
+  client:
+    _target_: limb.agents.policy_learning.policy_client.OpenPIClient
+    host: "0.0.0.0"
+    port: 8111
+  obs_transform:
+    _target_: limb.agents.policy_learning.transforms.OpenPIObsTransform
+    prompt: "Use one arm to grasp the papercup and hand it over to the other arm"
+    # ⬇ NEW — required for any pi06_yam_vial_30fps[_lora][_from_sft][_recap]_infer
+    #         config. Omit (or leave None) when serving vanilla pi0/pi0.5.
+    adv_ind: "positive"
+    image_keys:
+      cam_high: "head_camera-images-rgb"
+      cam_left_wrist: "left_wrist_camera-images-rgb"
+      cam_right_wrist: "right_wrist_camera-images-rgb"
+    image_size: [224, 224]
+    state_keys:
+      - "left-joint_pos"
+      - "left-gripper_pos"
+      - "right-joint_pos"
+      - "right-gripper_pos"
+```
+
+The `adv_ind_dropout=False` on the `_infer` TrainConfig only controls
+the **server-side** tokenizer's randomization — it doesn't conjure the
+field out of nowhere. The client still has to send it.
+
+Launch deployment:
+
+```bash
+cd ~/limb
+source .venv/bin/activate
+
+# Pure autonomous serve (no recording)
+uv run limb teleop --config-path configs/yam_dagger_pi0_bimanual.yaml
+
+# Or: continue collecting rollouts with this checkpoint
+uv run limb record --config-path \
+  configs/yam_dagger_pi0_bimanual.yaml \
+  configs/dagger_collection.yaml
+```
+
+## What's served vs what limb sends
+
+| Wire field          | limb sends                              | pistar's tokenizer adds                                        |
+|---------------------|-----------------------------------------|----------------------------------------------------------------|
+| `state`             | YAM 14-D state (left + right joints + grippers) | padded to action_dim (32)                                     |
+| `images.cam_high`   | resized head_camera (224×224, CHW)      | tokenized by SigLIP                                            |
+| `images.cam_left_wrist` | resized left_wrist                  | tokenized by SigLIP                                            |
+| `images.cam_right_wrist`| resized right_wrist                 | tokenized by SigLIP                                            |
+| `prompt`            | the task instruction string             | concatenated with the `adv_ind` value into `"Task: <prompt>, State: <…>, Advantage: <adv_ind>;\nAction: "` and tokenized by the PaliGemma SentencePiece tokenizer |
+| `adv_ind`           | **`"positive"`** (pinned by `OpenPIObsTransform.adv_ind`) — required for pistar models | substituted into the `Advantage: …` clause above. `_infer` configs set `adv_ind_dropout=False`, so the clause is always present at inference. |
+
+## Quantitative evaluation
+
+For honest comparisons between checkpoints (Stage 2 SFT vs Stage 3 vs
+Stage 6), use the same prompt, same scene, and same number of trials.
+
+```bash
+# 1. Start the server with the candidate checkpoint
+python scripts/serve_policy.py ...
+
+# 2. Run N=50 trials, recording success/failure
+uv run limb record --config-path \
+  configs/yam_dagger_pi0_bimanual.yaml \
+  configs/dagger_collection.yaml
+# (now operator just labels s/SPACE per attempt; don't intervene)
+
+# 3. Compute success rate
+uv run python -c "
+import glob
+ok = sum((open(f).read()=='') for f in glob.glob('recordings/<task>_<ts>/episode_*/SUCCESS'))
+total = len(glob.glob('recordings/<task>_<ts>/episode_*'))
+print(f'{ok}/{total} = {100*ok/total:.1f}%')
+"
+```
+
+Key invariant: an evaluation run is **operator-passive**. No bilateral
+teleop, no CORRECTING phase — just observe the policy and label
+`s`/`SPACE`. If you intervene, the resulting episode no longer reflects
+the policy's autonomous performance.
+
+## Common deployment issues
+
+| Symptom                                                                | Likely cause                                                                                                    |
+|------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------|
+| Robot moves identically to the pre-RECAP checkpoint                    | `_infer` config not used — `adv_ind` is dropping out. Re-serve with the `_*_infer` variant.                      |
+| First request takes 30+ seconds                                        | Normal — pistar JIT-compiles the forward pass on first call. Subsequent requests are ~150 ms.                    |
+| Connection refused on `:8111`                                          | Server not up. Check `nvidia-smi`; if pistar crashed on load, see Stage 4/6 troubleshooting in their pages.       |
+| Server returns shape mismatch                                          | Config / checkpoint mismatch. LoRA-trained ckpt with full-fine-tune config (or vice versa) will fail to restore. |
+| Robot jitters / oscillates                                             | Action smoothing too tight. `action_horizon=50` + `smoothing_window=4` is the default; raise smoothing for jittery policies. |
+| Policy stuck — won't initiate task                                     | Initial state too far from training distribution. Use right-pedal → CORRECTING to nudge into a known pose, then left-pedal back. |
+
+## Closed loop — feeding evaluation back into training
+
+A successful evaluation run produces a new batch of episodes
+(s/SPACE-labeled). Treat that batch as a new iteration:
+
+1. `limb convert-lerobot --pistar` ([Stage 1](stage1_conversion.md)) on
+   the new session.
+2. Merge into the existing v3.0 dataset (e.g. with
+   `pistar/scripts/merge_datasets.py`).
+3. Re-run `convert_v3_to_v21.py`.
+4. Re-train Stage 4 → 5 → 6 on the bigger dataset.
+
+This is the data closed-loop the pi0.6 paper iterates 2–3 times for
+hard tasks.
+
+## Next
+
+For the maintainer's reference, the upstream-pistar bugs we patched to
+make this all work end-to-end → [patches reference](patches.md).

@@ -1,0 +1,414 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Setup &mdash; RECAP on YAM</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+      <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=2709fde1"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="_static/copybutton.js?v=e679931d"></script>
+      <script src="_static/design-tabs.js?v=f930bc37"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Stage 0 — DAgger collection (limb)" href="stage0_collection.html" />
+    <link rel="prev" title="Overview" href="overview.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            RECAP on YAM
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Pipeline stages</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="overview.html">Overview</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="overview.html#what-recap-is">What RECAP is</a></li>
+<li class="toctree-l2"><a class="reference internal" href="overview.html#the-six-stages">The six stages</a></li>
+<li class="toctree-l2"><a class="reference internal" href="overview.html#how-our-pipeline-differs-from-rlinf-and-evo-rl">How our pipeline differs from RLinf and Evo-RL</a></li>
+<li class="toctree-l2"><a class="reference internal" href="overview.html#architecture-at-a-glance">Architecture at a glance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="overview.html#when-to-use-which-checkpoint">When to use which checkpoint</a></li>
+<li class="toctree-l2"><a class="reference internal" href="overview.html#yam-trainconfig-reference">YAM TrainConfig reference</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="overview.html#picking-one">Picking one</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Setup</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#repositories">Repositories</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#clone">Clone</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#patches-you-must-apply-to-pistar">Patches you must apply to pistar</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#python-environments">Python environments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#vlm-checkpoint-for-stage-4">VLM checkpoint (for Stage 4)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#pi0-5-base-weights-for-stage-2-sft">pi0.5 base weights (for Stage 2 SFT)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#hardware">Hardware</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#verify-everything-is-wired">Verify everything is wired</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#next">Next</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="stage0_collection.html">Stage 0 — DAgger collection (limb)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="stage0_collection.html#prerequisites">Prerequisites</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage0_collection.html#the-command">The command</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage0_collection.html#phase-machine-foot-pedal">Phase machine (foot pedal)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage0_collection.html#episode-lifecycle-keyboard">Episode lifecycle (keyboard)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage0_collection.html#what-gets-recorded">What gets recorded</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage0_collection.html#hygiene-rules">Hygiene rules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage0_collection.html#scale-guidance-from-the-pi0-6-paper">Scale guidance (from the pi0.6 paper)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage0_collection.html#reference-dataset">Reference dataset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage0_collection.html#next">Next</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="stage1_conversion.html">Stage 1 — Convert to LeRobot v2.1 with five RECAP columns</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="stage1_conversion.html#the-five-recap-columns">The five RECAP columns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage1_conversion.html#command">Command</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="stage1_conversion.html#flags-that-matter-for-pi0-6">Flags that matter for pi0.6</a></li>
+<li class="toctree-l3"><a class="reference internal" href="stage1_conversion.html#sft-demo-variant">SFT demo variant</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="stage1_conversion.html#verify-the-conversion">Verify the conversion</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage1_conversion.html#why-two-converters">Why two converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage1_conversion.html#symlink-into-pistars-lerobot-cache">Symlink into pistar’s lerobot cache</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage1_conversion.html#next">Next</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="stage2_sft.html">Stage 2 — Initial SFT (openpi, full fine-tune)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="stage2_sft.html#required-inputs">Required inputs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage2_sft.html#add-a-yam-trainconfig-to-openpi">Add a YAM <code class="docutils literal notranslate"><span class="pre">TrainConfig</span></code> to openpi</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage2_sft.html#compute-norm-stats-25-min-one-time">Compute norm stats (~25 min, one-time)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage2_sft.html#train-full-fine-tune-3-h-on-8-h100">Train (full fine-tune, ~3 h on 8× H100)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage2_sft.html#push-to-huggingface-recommended">Push to HuggingFace (recommended)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage2_sft.html#stage-3-stage-6-input-what-they-need-from-here">Stage 3 / Stage 6 input — what they need from here</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage2_sft.html#gotchas-from-openpi-yam-finetune-md">Gotchas (from openpi <code class="docutils literal notranslate"><span class="pre">yam_finetune.md</span></code>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage2_sft.html#next">Next</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="stage3_lora.html">Stage 3 — pi0.6 fine-tune from SFT (no VLM yet)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="stage3_lora.html#what-the-configs-look-like">What the configs look like</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage3_lora.html#train">Train</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage3_lora.html#lora-variant">LoRA variant</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage3_lora.html#what-this-gives-you-what-it-doesnt">What this gives you, what it doesn’t</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage3_lora.html#next">Next</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="stage4_value.html">Stage 4 — VLM value model training (pistar, patched)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="stage4_value.html#required-inputs">Required inputs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage4_value.html#quick-smoke-test-5-steps-30-s">Quick smoke test (5 steps, ~30 s)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage4_value.html#real-training-run">Real training run</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage4_value.html#tuning-knobs">Tuning knobs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage4_value.html#what-the-saved-checkpoint-contains">What the saved checkpoint contains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage4_value.html#healthy-training-signals">Healthy training signals</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage4_value.html#common-failures">Common failures</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage4_value.html#next">Next</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="stage5_advantage.html">Stage 5 — Advantage labeling (VLM relabel of <code class="docutils literal notranslate"><span class="pre">adv_ind</span></code>)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="stage5_advantage.html#make-a-standalone-copy-of-the-dataset">Make a standalone copy of the dataset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage5_advantage.html#what-it-does">What it does</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage5_advantage.html#command">Command</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="stage5_advantage.html#flag-explanations">Flag explanations</a></li>
+<li class="toctree-l3"><a class="reference internal" href="stage5_advantage.html#tuning">Tuning</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="stage5_advantage.html#verify-the-relabel">Verify the relabel</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage5_advantage.html#operating-principle-intuition">Operating principle (intuition)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage5_advantage.html#next">Next</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="stage6_recap.html">Stage 6 — Full RECAP fine-tune</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="stage6_recap.html#inputs">Inputs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage6_recap.html#the-recap-trainconfig">The <code class="docutils literal notranslate"><span class="pre">_recap</span></code> TrainConfig</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage6_recap.html#command">Command</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="stage6_recap.html#how-to-verify-at-runtime-that-the-vlm-labeled-dataset-is-loading">How to verify at runtime that the VLM-labeled dataset is loading</a></li>
+<li class="toctree-l3"><a class="reference internal" href="stage6_recap.html#continue-from-a-stage-3-checkpoint-instead-of-the-sft">Continue from a Stage 3 checkpoint instead of the SFT</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="stage6_recap.html#whats-different-from-stage-3-no-code-only-data">What’s different from Stage 3 (no code, only data)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage6_recap.html#healthy-signs-at-stage-6">Healthy signs at Stage 6</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage6_recap.html#multi-iteration-loop-paper-scale">Multi-iteration loop (paper-scale)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage6_recap.html#what-goes-wrong-and-what-to-do">What goes wrong, and what to do</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stage6_recap.html#next">Next</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="evaluation.html">Evaluation — Serve + deploy via limb</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="evaluation.html#serve">Serve</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="evaluation.html#match-the-model-variant">Match the model variant</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="evaluation.html#limb-side-add-adv-ind-positive-to-the-obs-transform">limb side — add <code class="docutils literal notranslate"><span class="pre">adv_ind:</span> <span class="pre">&quot;positive&quot;</span></code> to the obs transform</a></li>
+<li class="toctree-l2"><a class="reference internal" href="evaluation.html#whats-served-vs-what-limb-sends">What’s served vs what limb sends</a></li>
+<li class="toctree-l2"><a class="reference internal" href="evaluation.html#quantitative-evaluation">Quantitative evaluation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="evaluation.html#common-deployment-issues">Common deployment issues</a></li>
+<li class="toctree-l2"><a class="reference internal" href="evaluation.html#closed-loop-feeding-evaluation-back-into-training">Closed loop — feeding evaluation back into training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="evaluation.html#next">Next</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="patches.html">Patches reference — making pistar Stage 4 / 5 actually run</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="patches.html#patch-summary">Patch summary</a></li>
+<li class="toctree-l2"><a class="reference internal" href="patches.html#patches-in-detail">Patches in detail</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="patches.html#valuemodelweightloader">1. <code class="docutils literal notranslate"><span class="pre">ValueModelWeightLoader</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="patches.html#missing-gemma-gm-data-directory">2. Missing <code class="docutils literal notranslate"><span class="pre">gemma/gm/data/</span></code> directory</a></li>
+<li class="toctree-l3"><a class="reference internal" href="patches.html#kauldron-ktyping-kauldron-typing">3. <code class="docutils literal notranslate"><span class="pre">kauldron.ktyping</span></code> → <code class="docutils literal notranslate"><span class="pre">kauldron.typing</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="patches.html#etils-edc-contextstack-in-dtype-params-py">4. &amp; 5. <code class="docutils literal notranslate"><span class="pre">etils.edc.ContextStack</span></code> in <code class="docutils literal notranslate"><span class="pre">_dtype_params.py</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="patches.html#openpi-shared-console-progress-stubs">6. &amp; 7. <code class="docutils literal notranslate"><span class="pre">openpi.shared.{console,progress}</span></code> stubs</a></li>
+<li class="toctree-l3"><a class="reference internal" href="patches.html#dataconfig-field-rename-action-key">8. &amp; 9. <code class="docutils literal notranslate"><span class="pre">DataConfig</span></code> field rename + action key</a></li>
+<li class="toctree-l3"><a class="reference internal" href="patches.html#create-value-data-loader">10. <code class="docutils literal notranslate"><span class="pre">create_value_data_loader</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="patches.html#dataloaderimpl-dataset-len">11. <code class="docutils literal notranslate"><span class="pre">DataLoaderImpl.dataset</span></code> + <code class="docutils literal notranslate"><span class="pre">__len__</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="patches.html#trainstate-flax-struct-pytreenode">12. <code class="docutils literal notranslate"><span class="pre">TrainState</span></code> → <code class="docutils literal notranslate"><span class="pre">flax.struct.PyTreeNode</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="patches.html#valuedataloaderimpl-gemmavaluetokenizer-tokenize-extra-args-int-step-for-tqdm">13. <code class="docutils literal notranslate"><span class="pre">_ValueDataLoaderImpl</span></code>, <code class="docutils literal notranslate"><span class="pre">GemmaValueTokenizer.tokenize</span></code> extra args, <code class="docutils literal notranslate"><span class="pre">int(step)</span></code> for tqdm</a></li>
+<li class="toctree-l3"><a class="reference internal" href="patches.html#same-gaps-in-label-advantage-from-vlm-py-stage-5">14. &amp; 15. Same gaps in <code class="docutils literal notranslate"><span class="pre">label_advantage_from_vlm.py</span></code> (Stage 5)</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="patches.html#end-to-end-verification">End-to-end verification</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">RECAP on YAM</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content style-external-links">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Setup</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/setup.md.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul><div class="rst-breadcrumbs-buttons" role="navigation" aria-label="Sequential page navigation">
+        <a href="overview.html" class="btn btn-neutral float-left" title="Overview" accesskey="p"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="stage0_collection.html" class="btn btn-neutral float-right" title="Stage 0 — DAgger collection (limb)" accesskey="n">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+  </div>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="setup">
+<h1>Setup<a class="headerlink" href="#setup" title="Link to this heading"></a></h1>
+<section id="repositories">
+<h2>Repositories<a class="headerlink" href="#repositories" title="Link to this heading"></a></h2>
+<p>Three repos collaborate in this stack. They live as siblings under one
+parent directory (this site assumes <code class="docutils literal notranslate"><span class="pre">~/limb/</span></code>).</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>limb/                       # YAM control + DAgger collection + serve client
+├── openpi/                 # JAX SFT (yam_finetune.md)
+├── pistar/                 # JAX RECAP (Stages 3-6), our 13 patches applied
+└── datasets/               # converted LeRobot v3.0 + v2.1 datasets
+</pre></div>
+</div>
+<section id="clone">
+<h3>Clone<a class="headerlink" href="#clone" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>~/limb
+
+<span class="c1"># limb (this should already be the working dir)</span>
+<span class="c1"># openpi (your YAM-tuned fork — produces the SFT checkpoint in Stage 2)</span>
+git<span class="w"> </span>clone<span class="w"> </span>https://github.com/Avant-US/openpi.git<span class="w"> </span>openpi
+<span class="c1"># pistar (fork of openpi where the value model + advantage labeling live)</span>
+git<span class="w"> </span>clone<span class="w"> </span>https://github.com/ybpy/pistar.git<span class="w"> </span>pistar
+</pre></div>
+</div>
+</section>
+<section id="patches-you-must-apply-to-pistar">
+<h3>Patches you must apply to pistar<a class="headerlink" href="#patches-you-must-apply-to-pistar" title="Link to this heading"></a></h3>
+<p>Pistar <code class="docutils literal notranslate"><span class="pre">main</span></code> ships with several missing files / API-drift bugs in the
+Stage 4 / Stage 5 path. We resolved them with 13 targeted patches; see
+<a class="reference internal" href="patches.html"><span class="std std-doc">the patches reference</span></a> for the complete diff list. All
+patches are local to <code class="docutils literal notranslate"><span class="pre">pistar/</span></code> and <code class="docutils literal notranslate"><span class="pre">pistar/gemma/</span></code> — your <code class="docutils literal notranslate"><span class="pre">openpi/</span></code> tree
+is untouched.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Do <strong>not</strong> share a venv between <code class="docutils literal notranslate"><span class="pre">openpi/</span></code> and <code class="docutils literal notranslate"><span class="pre">pistar/</span></code>. They depend on
+different pinned versions of openpi-internal modules. The collection
+side (<code class="docutils literal notranslate"><span class="pre">limb</span></code>) gets its own venv too.</p>
+</div>
+</section>
+</section>
+<section id="python-environments">
+<h2>Python environments<a class="headerlink" href="#python-environments" title="Link to this heading"></a></h2>
+<p>Three independent venvs.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. limb (data collection + deployment)</span>
+<span class="nb">cd</span><span class="w"> </span>~/limb
+uv<span class="w"> </span>venv<span class="w"> </span>.venv<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">source</span><span class="w"> </span>.venv/bin/activate
+uv<span class="w"> </span>sync
+deactivate
+
+<span class="c1"># 2. openpi (Stage 2 SFT only)</span>
+<span class="nb">cd</span><span class="w"> </span>openpi
+uv<span class="w"> </span>venv<span class="w"> </span>~/.venvs/openpi<span class="w"> </span>--python<span class="w"> </span><span class="m">3</span>.11
+<span class="nb">source</span><span class="w"> </span>~/.venvs/openpi/bin/activate
+uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+deactivate
+
+<span class="c1"># 3. pistar (Stages 3-6 + Stage 4 value + Stage 5 advantage)</span>
+<span class="nb">cd</span><span class="w"> </span>../pistar
+git<span class="w"> </span>submodule<span class="w"> </span>update<span class="w"> </span>--init<span class="w"> </span>--recursive
+uv<span class="w"> </span>venv<span class="w"> </span>~/.venvs/pistar<span class="w"> </span>--python<span class="w"> </span><span class="m">3</span>.11.9
+<span class="nb">source</span><span class="w"> </span>~/.venvs/pistar/bin/activate
+<span class="nv">GIT_LFS_SKIP_SMUDGE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>uv<span class="w"> </span>sync<span class="w"> </span>--active
+<span class="nv">GIT_LFS_SKIP_SMUDGE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>pistar_requirements.txt
+</pre></div>
+</div>
+</section>
+<section id="vlm-checkpoint-for-stage-4">
+<h2>VLM checkpoint (for Stage 4)<a class="headerlink" href="#vlm-checkpoint-for-stage-4" title="Link to this heading"></a></h2>
+<p>Pistar’s value model is initialized from a pretrained VLM bundle
+distributed at
+<a class="reference external" href="https://huggingface.co/ybpy/vlm_ckpt"><code class="docutils literal notranslate"><span class="pre">ybpy/vlm_ckpt</span></code></a> on HF (also a
+Google Drive mirror linked in pistar’s README).</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># pick a stable location</span>
+mkdir<span class="w"> </span>-p<span class="w"> </span>~/Downloads/vlm_ckpt
+huggingface-cli<span class="w"> </span>download<span class="w"> </span>ybpy/vlm_ckpt<span class="w"> </span>--local-dir<span class="w"> </span>~/Downloads/vlm_ckpt
+ls<span class="w"> </span>~/Downloads/vlm_ckpt
+<span class="c1"># expect:</span>
+<span class="c1">#   gemma-3-270m/         (orbax checkpoint at step_00020000/)</span>
+<span class="c1">#   siglip2-so400m-patch14-224-jax/</span>
+<span class="c1">#   tokenizer.model</span>
+</pre></div>
+</div>
+<p>Our <a class="reference internal" href="patches.html#valuemodelweightloader"><span class="std std-ref">ValueModelWeightLoader</span></a> reads
+<code class="docutils literal notranslate"><span class="pre">$OPENPI_VLM_CKPT_DIR</span></code> (default <code class="docutils literal notranslate"><span class="pre">~/Downloads/vlm_ckpt</span></code>) and the orbax at
+<code class="docutils literal notranslate"><span class="pre">&lt;dir&gt;/gemma-3-270m/step_00020000/</span></code>.</p>
+</section>
+<section id="pi0-5-base-weights-for-stage-2-sft">
+<h2>pi0.5 base weights (for Stage 2 SFT)<a class="headerlink" href="#pi0-5-base-weights-for-stage-2-sft" title="Link to this heading"></a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Either: cloud-pull on first training step (slow first run)</span>
+gcloud<span class="w"> </span>auth<span class="w"> </span>application-default<span class="w"> </span>login
+
+<span class="c1"># Or: pre-download to a local mirror</span>
+mkdir<span class="w"> </span>-p<span class="w"> </span>~/pi05_base
+gsutil<span class="w"> </span>-m<span class="w"> </span>rsync<span class="w"> </span>-r<span class="w"> </span>gs://openpi-assets/checkpoints/pi05_base<span class="w"> </span>~/pi05_base
+<span class="c1"># Then in pistar/openpi configs, point CheckpointWeightLoader at</span>
+<span class="c1"># &quot;/home/&lt;user&gt;/pi05_base/params&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="hardware">
+<h2>Hardware<a class="headerlink" href="#hardware" title="Link to this heading"></a></h2>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Component</p></th>
+<th class="head"><p>Spec</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Robot</p></td>
+<td><p>YAM bimanual (I2RT) — 2 followers + 2 leaders, 6 DoF each + gripper</p></td>
+</tr>
+<tr class="row-odd"><td><p>Cameras</p></td>
+<td><p>3× Intel RealSense — head + left-wrist + right-wrist (224×224 input to model)</p></td>
+</tr>
+<tr class="row-even"><td><p>Pedal</p></td>
+<td><p>PCsensor / iKKEGOL double pedal (vendor <code class="docutils literal notranslate"><span class="pre">0x3553</span></code>, product <code class="docutils literal notranslate"><span class="pre">0xb001</span></code>)</p></td>
+</tr>
+<tr class="row-odd"><td><p>GPU</p></td>
+<td><p>Multi-GPU for full fine-tune (e.g. 8× H100 80 GB) — <em>or</em> a single 24 GB consumer GPU for LoRA-only smoke runs</p></td>
+</tr>
+<tr class="row-even"><td><p>CAN</p></td>
+<td><p>4× CAN buses (<code class="docutils literal notranslate"><span class="pre">can_follow_l/r</span></code>, <code class="docutils literal notranslate"><span class="pre">can_leader_l/r</span></code>) at 1 Mbps</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="verify-everything-is-wired">
+<h2>Verify everything is wired<a class="headerlink" href="#verify-everything-is-wired" title="Link to this heading"></a></h2>
+<p>A 90-second sanity script before doing anything serious.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. Cameras</span>
+<span class="nb">cd</span><span class="w"> </span>~/limb
+uv<span class="w"> </span>run<span class="w"> </span>scripts/diagnostics/test_realsense_cameras.py
+
+<span class="c1"># 2. CAN + arms (each command times out if its CAN bus is broken)</span>
+uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>scripts/diagnostics/print_YAM_joints.py<span class="w"> </span>--channel<span class="w"> </span>can_follow_l<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--limits-from<span class="w"> </span>robot_configs/yam/left.yaml
+uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>scripts/diagnostics/print_YAM_joints.py<span class="w"> </span>--channel<span class="w"> </span>can_follow_r<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--limits-from<span class="w"> </span>robot_configs/yam/left.yaml<span class="w"> </span>robot_configs/yam/right.yaml
+uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>scripts/diagnostics/print_YAM_joints.py<span class="w"> </span>--channel<span class="w"> </span>can_leader_l<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--limits-from<span class="w"> </span>robot_configs/yam/left.yaml<span class="w"> </span>robot_configs/yam/leader_left.yaml
+uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>scripts/diagnostics/print_YAM_joints.py<span class="w"> </span>--channel<span class="w"> </span>can_leader_r<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--limits-from<span class="w"> </span>robot_configs/yam/left.yaml<span class="w"> </span>robot_configs/yam/leader_right.yaml
+
+<span class="c1"># 3. Foot pedal</span>
+uv<span class="w"> </span>run<span class="w"> </span>scripts/diagnostics/test_dagger_phase.py
+</pre></div>
+</div>
+<p>All four arms should stream joint values. The pedal test should print
+phase-transition messages on each stomp. If any of these fails, fix the
+hardware before continuing — collection will not work, and there is no
+software workaround.</p>
+</section>
+<section id="next">
+<h2>Next<a class="headerlink" href="#next" title="Link to this heading"></a></h2>
+<p>Continue to <a class="reference internal" href="stage0_collection.html"><span class="std std-doc">Stage 0 — Collection</span></a>.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="overview.html" class="btn btn-neutral float-left" title="Overview" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="stage0_collection.html" class="btn btn-neutral float-right" title="Stage 0 — DAgger collection (limb)" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, limb + pistar contributors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

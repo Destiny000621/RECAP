@@ -1,0 +1,166 @@
+# Stage 4 — VLM value model training (pistar, patched)
+
+Train the SigLIP-So400m + Gemma3-270M + 201-bin C51 critic head on
+per-frame `value_label` supervision. Output: a value model that
+predicts `V(o_t)` from `(image, wrist_image, state, prompt)`.
+
+```{warning}
+**Pistar's `scripts/train_value.py` is upstream-broken on `main`.**
+It imports a `ValueModelWeightLoader` that doesn't exist, depends on a
+`gemma/gm/data/` directory that isn't shipped, references modules
+renamed in modern `kauldron` / `etils`, and so on. We resolved all of
+this with **patches 1-13** documented in full at
+[the patches reference](patches.md). This page assumes those patches
+are in place. ([Stage 5](stage5_advantage.md) needs 2 more patches —
+14 and 15.)
+```
+
+## Required inputs
+
+1. The [v2.1 dataset](stage1_conversion.md) with the five RECAP columns
+   *and* the lerobot-cache symlink (`local/<dataset>` resolution).
+2. The [VLM checkpoint bundle](setup.md#vlm-checkpoint-for-stage-4)
+   at `~/Downloads/vlm_ckpt/` (or `$OPENPI_VLM_CKPT_DIR`).
+3. The 13 pistar patches from [patches.md](patches.md) applied.
+
+## Quick smoke test (5 steps, ~30 s)
+
+Confirm the patched pipeline runs end-to-end before committing to a long
+training run.
+
+```bash
+cd ~/limb/pistar
+source ~/.venvs/pistar/bin/activate
+
+XLA_PYTHON_CLIENT_PREALLOCATE=false XLA_PYTHON_CLIENT_MEM_FRACTION=0.85 \
+  python scripts/train_value.py \
+    --data_dir ~/limb/datasets/vial_rollout_v1_v21 \
+    --checkpoint_dir checkpoints/value_model/yam_vial_v1 \
+    --batch_size 4 --num_train_steps 5 \
+    --save_interval 100 --val_interval 0 \
+    --load_pretrained \
+    --tokenizer_path ~/vlm_ckpt/tokenizer.model \
+    --wandb_mode disabled
+```
+
+A successful 5-step run prints (Chinese log strings are pistar
+upstream; English commentary added):
+
+```text
+ℹ 使用本地 Gemma3 tokenizer: ~/vlm_ckpt/tokenizer.model
+local_batch_size: 4
+ℹ 数据集大小: 21286 帧                                  ← dataset reachable
+ℹ 加载 SigLIP + Gemma3-270M 预训练权重...
+Restoring checkpoint from ~/vlm_ckpt/gemma-3-270m/step_00020000.
+Finished restoring checkpoint in 1.33 seconds.
+ValueModelWeightLoader: restored 241 leaf arrays from .../step_00020000 (key=params, step=20000)
+✓ 预训练权重加载完成
+模型初始化完成
+预取前几个batch以优化GPU利用率...
+✓ 成功预取 3 个batch
+JIT编译预热...
+JIT编译完成，开始训练...                                  ← JIT done
+Progress on:训练进度 1.00it/5.00it rate:12.1s/it           ← first step (compile)
+Progress on:训练进度 5.00it/5.00it rate:1.9s/it elapsed:00:13   ← steady-state ~0.2 s/step
+✓ 保存 checkpoint: .../checkpoints/value_model/yam_vial_v1/step_00000005
+训练完成!
+```
+
+The 5-step checkpoint is 5.1 GB on disk (full value model — SigLIP +
+Gemma3 + heads + EMA + step).
+
+## Real training run
+
+On the reference dataset (10 episodes, 21,286 frames) `~5000 steps` is
+the sane scale; the bundle is already at step 20,000 from a prior
+LIBERO run, so this is genuinely fine-tuning, not pretraining.
+
+```bash
+XLA_PYTHON_CLIENT_PREALLOCATE=false XLA_PYTHON_CLIENT_MEM_FRACTION=0.85 \
+  python scripts/train_value.py \
+    --data_dir ~/limb/datasets/vial_rollout_v1_v21 \
+    --checkpoint_dir checkpoints/value_model/yam_vial_v1 \
+    --batch_size 4 \
+    --num_train_steps 5000 \
+    --save_interval 1000 \
+    --val_interval 0 \
+    --load_pretrained \
+    --tokenizer_path ~/vlm_ckpt/tokenizer.model \
+    --wandb_mode disabled
+```
+
+At ~0.2 s / step that's ~17 minutes wall-clock. Checkpoints at 1k / 2k
+/ 3k / 4k / 5k under `checkpoints/value_model/yam_vial_v1/step_*`.
+
+Multi-GPU full-throttle on 8× H100:
+
+```bash
+accelerate launch --multi_gpu --num_processes=8 --mixed_precision=bf16 \
+  $(which python) scripts/train_value.py \
+    --data_dir <…> --checkpoint_dir <…> \
+    --batch_size 64 --num_train_steps 30000 \
+    --load_pretrained --tokenizer_path <…>/tokenizer.model
+```
+
+That matches pistar's documented default (30k steps, batch 64) — paper
+scale.
+
+## Tuning knobs
+
+| Flag                          | Default | Notes                                                                              |
+|-------------------------------|---------|------------------------------------------------------------------------------------|
+| `--batch_size`                | 32      | Drop to 4–8 on a single 24 GB consumer GPU; raise to 64+ on H100s.                  |
+| `--num_train_steps`           | 30000   | The bundle is already at step 20k; 5k more is plenty for small-task fine-tuning.   |
+| `--peak_lr`                   | 2.5e-5  | Drop to 1e-5 if loss diverges; pistar default schedule is cosine.                   |
+| `--load_pretrained`           | off     | **Required.** Invokes our `ValueModelWeightLoader` against the VLM bundle.         |
+| `--tokenizer_path`            | (auto)  | Explicit path defeats pistar's hardcoded `/data/...` fallback search.              |
+| `--freeze_mode`               | `all_backbones` | Default freezes SigLIP + LLM. `siglip_only` and `none` are slower but lower-bias. |
+| `--wandb_mode`                | online  | Set to `disabled` for the first dry runs.                                          |
+| `--val_data_dir` + `--val_interval` | off | Provide a held-out v2.1 dataset for periodic val loss; very useful at paper scale. |
+
+## What the saved checkpoint contains
+
+The orbax tree mirrors the bundle's structure:
+
+```text
+checkpoints/value_model/yam_vial_v1/step_00005000/
+├── _CHECKPOINT_METADATA
+├── _METADATA
+├── array_metadatas/process_0
+├── d/...
+├── manifest.ocdbt
+├── ocdbt.process_0/
+└── _sharding
+```
+
+Top-level keys inside: `{params, ema_params, step}`. [Stage 5](stage5_advantage.md)
+uses `ema_params` by default (`--use_ema`).
+
+## Healthy training signals
+
+- **Train loss** falls from ~5–7 initial to ~2–3 within a few hundred
+  steps.
+- **Val loss** (if provided) tracks train loss within ~2×.
+- **Two-hot target distribution** stays bimodal — non-zero mass at both
+  ends of the [-1, 0] support. If everything collapses to one bin, your
+  dataset has only success-shaped or only failure-shaped value labels;
+  collect the missing class.
+
+## Common failures
+
+| Symptom                                                                 | Diagnosis & fix                                                                                                                                  |
+|-------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ImportError: cannot import name 'ValueModelWeightLoader'`              | Patch 1 not applied — add the class to `weight_loaders.py`. See [patches.md](patches.md).                                                         |
+| `ModuleNotFoundError: No module named 'gemma.gm.data'`                  | Patch 2 not applied — copy the upstream gemma `gm/data/` directory in.                                                                          |
+| `ModuleNotFoundError: No module named 'kauldron.ktyping'`               | Patch 3 — sed `kauldron.ktyping` → `kauldron.typing` in the copied `_functional.py` and `_transforms.py`.                                          |
+| `AttributeError: module 'etils.edc' has no attribute 'ContextStack'`    | Patch 5 — replace the use with a local fallback class in `_dtype_params.py`.                                                                     |
+| `ImportError: cannot import name 'console' from 'openpi.shared'`        | Patch 6 — drop in the `console.py` stub.                                                                                                          |
+| `TypeError: DataConfig.__init__() got an unexpected keyword argument 'local_data_dir'` | Patch 8 — `build_value_data_config` uses the new `repo_id` API.                                                                                  |
+| `AttributeError: module 'openpi.training.data_loader' has no attribute 'create_value_data_loader'` | Patch 10 — add the function.                                                                                                                     |
+| `RESOURCE_EXHAUSTED: Out of memory while trying to allocate ...`        | Another GPU consumer is up. `nvidia-smi`; on multi-GPU rigs use `accelerate launch ... --num_processes=N` and divide batch size accordingly.    |
+| Loss is NaN after a few steps                                           | Drop `--batch_size` and/or `--peak_lr`. Verify `value_label` / `reward_label` aren't `inf` (they should be in `[-1, 0]`).                          |
+
+## Next
+
+The value model is ready — [Stage 5](stage5_advantage.md) uses it to
+relabel `adv_ind` on autonomous frames.

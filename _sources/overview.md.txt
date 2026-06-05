@@ -1,0 +1,245 @@
+# Overview
+
+## What RECAP is
+
+**RECAP** — *RL with Experience and Corrections via Advantage-conditioned
+Policies* — is the offline RL algorithm that pi0.6 uses to self-improve
+from heterogeneous data: SFT demonstrations, autonomous rollouts, and
+operator-driven corrections.
+
+The mechanism in one sentence: train a VLM-based value model on the
+collected data, use it to classify each *autonomous* frame as
+high-advantage (`positive`) or low-advantage (`negative`), then continue
+fine-tuning the policy with the per-frame advantage class fed in as a
+**tokenized conditioning signal** (`adv_ind`). At inference, condition on
+`positive`.
+
+Key properties:
+
+- **Offline** — no online environment interaction needed during value
+  model training.
+- **Heterogeneous data friendly** — successful demos, failed rollouts,
+  and operator corrections all contribute meaningfully.
+- **Same VLA architecture** — the policy is the standard pi0.5/pi0.6
+  with a single extra tokenizer input (`adv_ind`). No new parameters at
+  the architecture level; no CFG-style sampler at inference.
+
+## The six stages
+
+| Stage  | What it does                                                              | Tool                          | Output                                             |
+|--------|---------------------------------------------------------------------------|-------------------------------|----------------------------------------------------|
+| 0      | Collect DAgger rollouts (operator pedals + keyboard for episode lifecycle) | `limb record …`               | raw episodes under `recordings/<session>/`         |
+| 1      | Convert to LeRobot v3.0 with five RECAP columns (+v3→v2.1)                 | `limb convert-lerobot --pistar` + `openpi convert_v3_to_v21.py` | `datasets/<task>_pistar_v1_v21/`                   |
+| 2      | Initial pi0.5 SFT on demos                                                | `openpi/scripts/train.py`     | SFT checkpoint (e.g. `ttotmoon/yam-vial-place-pi05-v1`) |
+| 3      | pi0.6 **full** fine-tune from SFT, no VLM yet (limb-supplied `adv_ind`)    | `pistar/scripts/train.py`     | pi0.6 checkpoint                                   |
+| 4      | Train the VLM value model on `value_label`                                | `pistar/scripts/train_value.py` (+ our 13 patches) | value model checkpoint                             |
+| 5      | Run the value model to relabel `adv_ind` on autonomous frames             | `pistar/scripts/label_advantage_from_vlm.py` | dataset with VLM-classified `adv_ind` in place    |
+| 6      | Continue pi0.6 **full** fine-tune on the relabeled dataset (full RECAP)   | `pistar/scripts/train.py`     | full-RECAP pi0.6 checkpoint                        |
+
+Each stage is its own page in this site with the exact command and
+expected output.
+
+## How our pipeline differs from RLinf and Evo-RL
+
+Three real-robot RECAP implementations exist publicly. We use **pistar**.
+
+```{list-table}
+:header-rows: 1
+:widths: 25 25 25 25
+
+* - Aspect
+  - pistar (this site)
+  - RLinf
+  - Evo-RL
+* - Validation
+  - real robot (SO-101, PiPER) — and now YAM via this work
+  - LIBERO sim only
+  - real robot (SO-101, AgileX PiPER)
+* - Backend
+  - JAX (flax.nnx)
+  - PyTorch
+  - PyTorch (LeRobot 0.4.4)
+* - Repo relation to openpi
+  - fork of openpi
+  - vendors openpi
+  - LeRobot-native, no openpi
+* - Conditioning at serving
+  - tokenized `adv_ind` via openpi's standard tokenizer — vanilla `serve_policy.py`
+  - CFG sampler with `cfgrl_guidance_scale` knob — needs a shim around serve
+  - `Advantage: positive`/`negative` text appended to the task prompt
+* - Value labeling
+  - VLM-based supervision on per-frame `value_label` + `reward_label`; advantage = N-step value-target rollout
+  - Critic-Expert head, advantage = N-step lookahead on values, top-quantile binarization
+  - same as pistar in spirit; different field names
+```
+
+## Architecture at a glance
+
+```text
+                 ┌──────────────────────────────────────────┐
+                 │  YAM bimanual + 3 cameras (RealSense)    │
+                 │  + iKKEGOL foot pedal (phase trigger)    │
+                 └──────────────────┬───────────────────────┘
+                                    │ control loop @ 30 Hz
+                 ┌──────────────────▼───────────────────────┐
+                 │  limb (Python)                            │
+                 │   ├─ DAggerAgent (phase machine)          │
+                 │   ├─ OpenPIClient → 0.0.0.0:8111          │
+                 │   └─ DAggerCollectionSession (s/SPACE)    │
+                 └──────────────────┬───────────────────────┘
+                                    │ recordings/<session>/
+                                    │
+                 ┌──────────────────▼───────────────────────┐
+                 │  limb convert-lerobot --pistar            │
+                 │   ├─ adds 5 RECAP columns (Stage 1)       │
+                 │   └─ + openpi convert_v3_to_v21.py        │
+                 └──────────────────┬───────────────────────┘
+                                    │ datasets/.../v21/
+                                    │
+   ┌────────────────────────────────┼────────────────────────────────┐
+   │                                │                                │
+┌──▼──────────┐         ┌───────────▼──────────┐         ┌───────────▼──────────┐
+│ openpi      │         │ pistar               │         │ pistar               │
+│ Stage 2 SFT │         │ Stage 3 LoRA-from-SFT│         │ Stage 4 train_value  │
+│ (JAX)       │         │ (JAX, pistar fork)   │         │ (JAX, our 13 patches)│
+└──┬──────────┘         └───────────┬──────────┘         └───────────┬──────────┘
+   │                                │                                │
+   │ ckpt to HF                     │                                │ value-model ckpt
+   │                                │                                │
+   │                                │           ┌────────────────────▼────────────────┐
+   │                                │           │ pistar label_advantage_from_vlm.py  │
+   │                                │           │  (rewrites adv_ind in place)         │
+   │                                │           └────────────────────┬────────────────┘
+   │                                │                                │
+   │                                │           ┌────────────────────▼────────────────┐
+   │                                │           │ pistar Stage 6 train.py             │
+   │                                │           │ (full RECAP fine-tune)              │
+   │                                │           └────────────────────┬────────────────┘
+   │                                │                                │
+   ▼                                ▼                                ▼
+                       openpi serve_policy.py :8111
+                                    │
+                                    │ websocket
+                                    ▼
+                 limb teleop / limb record (DAgger)
+                                    │
+                                    └───── back to top: more rollouts → relabel → fine-tune
+```
+
+## When to use which checkpoint
+
+| Goal                                              | Run this                                              |
+|---------------------------------------------------|-------------------------------------------------------|
+| Real RECAP improvement on >100 episodes           | [Full Stages 1→6](stage6_recap.md), full fine-tune    |
+| Quick end-to-end smoke on a single 24 GB GPU      | [Stage 3 LoRA-from-SFT](stage3_lora.md), no Stage 4-5 |
+| Collect more rollouts for the next round          | [Stage 0](stage0_collection.md) after serving any checkpoint |
+
+```{note}
+**Default path is full fine-tuning** (multi-GPU, e.g. 8× H100). The LoRA
+variants documented across the stage pages are kept for single-GPU
+development or quick smoke tests; they share the same data path and YAM
+TrainConfig structure and produce the same architecture, just with the
+backbone frozen.
+```
+
+A note on scale (from the [pi0.6 paper](https://arxiv.org/abs/2511.14759)
+Appendix A-F): for each task, the paper uses **287–450 correction
+episodes per iteration**, sometimes across multiple iterations. On
+~10 episodes the VLM value model overfits and Stage 4-5 adds little
+beyond Stage 3; on ~100 episodes it starts to matter; at ~300+ it
+matches the paper's regime.
+
+(yam-trainconfig-reference)=
+
+## YAM TrainConfig reference
+
+All eight pi0.6 TrainConfigs we registered in
+[`pistar/src/openpi/training/config.py`](https://github.com/ybpy/pistar)
+form four `(train, infer)` pairs. The pair differs only by the
+`adv_ind_dropout` flag (`True` for training, `False` for serving so the
+positive tag is always present at inference). All eight share the same
+model architecture (`Pi0Config(pi05=True, pistar=True)`), the same
+3-camera repack, the same `default_prompt` for the YAM vial-handover
+task, and `adapt_to_pi=False` (YAM joint conventions, not ALOHA's).
+
+```{list-table}
+:header-rows: 1
+:widths: 28 10 14 22 12 14
+
+* - TrainConfig name
+  - Variant
+  - Init weights
+  - Dataset (`repo_id`)
+  - Stage
+  - Purpose
+* - `pi06_yam_vial_30fps`
+  - full
+  - `pi05_base`
+  - `local/vial_rollout_v1_v21`
+  - 3 (full alt.)
+  - From-scratch pi0.6 full fine-tune on the limb-supplied (`adv_ind ∈ {positive, none}`) dataset. The "ignore the SFT" baseline.
+* - `pi06_yam_vial_30fps_infer`
+  - full
+  - same
+  - same
+  - 3 (serve)
+  - Serving config for the above (`adv_ind_dropout=False`).
+* - `pi06_yam_vial_30fps_lora`
+  - LoRA
+  - `pi05_base`
+  - `local/vial_rollout_v1_v21`
+  - 3 (LoRA alt.)
+  - LoRA version of the above for single-24-GB-GPU dev.
+* - `pi06_yam_vial_30fps_lora_infer`
+  - LoRA
+  - same
+  - same
+  - 3 (serve)
+  - Serving config for the LoRA-from-scratch variant.
+* - `pi06_yam_vial_30fps_lora_from_sft`
+  - LoRA
+  - **SFT** (`yam-vial-place-pi05-v1`)
+  - `local/vial_rollout_v1_v21`
+  - **3** (recommended)
+  - The Stage 3 default: LoRA fine-tune starting from the openpi SFT checkpoint, no VLM relabel.
+* - `pi06_yam_vial_30fps_lora_from_sft_infer`
+  - LoRA
+  - same
+  - same
+  - 3 (serve)
+  - Serving config for the Stage 3 LoRA-from-SFT checkpoint.
+* - `pi06_yam_vial_30fps_lora_from_sft_recap`
+  - LoRA
+  - **SFT** (`yam-vial-place-pi05-v1`)
+  - **`local/vial_rollout_v1_v21_vlm_label`**
+  - **6** (recommended)
+  - The Stage 6 default: LoRA fine-tune on the **VLM-relabeled** copy. Only `repo_id` differs from the Stage 3 LoRA-from-SFT config.
+* - `pi06_yam_vial_30fps_lora_from_sft_recap_infer`
+  - LoRA
+  - same
+  - same
+  - 6 (serve)
+  - Serving config for the Stage 6 RECAP LoRA checkpoint.
+* - `pi06_yam_vial_30fps_from_sft_recap`
+  - **full**
+  - **SFT** (`yam-vial-place-pi05-v1`)
+  - **`local/vial_rollout_v1_v21_vlm_label`**
+  - **6** (8× H100)
+  - The Stage 6 paper-style recipe: full fine-tune (no LoRA, no freeze) on the VLM-relabeled copy, init from the SFT. `batch_size=56`.
+* - `pi06_yam_vial_30fps_from_sft_recap_infer`
+  - full
+  - same
+  - same
+  - 6 (serve)
+  - Serving config for the Stage 6 full-fine-tune RECAP checkpoint.
+```
+
+### Picking one
+
+| Situation                                         | Config                                           |
+|---------------------------------------------------|--------------------------------------------------|
+| Single 24 GB GPU, want to reproduce Stage 3       | `pi06_yam_vial_30fps_lora_from_sft`              |
+| Single 24 GB GPU, want to reproduce Stage 6 (RECAP) | `pi06_yam_vial_30fps_lora_from_sft_recap`        |
+| 8× H100, paper-style RECAP                        | `pi06_yam_vial_30fps_from_sft_recap`             |
+| Skipping the SFT — pretraining from `pi05_base`   | `pi06_yam_vial_30fps` (full) or `_lora` variant  |
+| Serving any of the above                          | The matching `_infer` config                     |
