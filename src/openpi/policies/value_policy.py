@@ -104,6 +104,11 @@ class ValueInputs(transforms.DataTransformFn):
             "observation.images.base_0_rgb",
             "images/base_0_rgb",
             "images.base_0_rgb",
+            # YAM bimanual (limb convert-lerobot --pistar default names)
+            "observation/images/head_camera",
+            "observation.images.head_camera",
+            "images/head_camera",
+            "images.head_camera",
         ]
         wrist_candidates = [
             "observation/wrist_image",
@@ -121,6 +126,15 @@ class ValueInputs(transforms.DataTransformFn):
             "observation.wrist_image_left",
             "observation/wrist_image_right",
             "observation.wrist_image_right",
+            # YAM bimanual (limb convert-lerobot --pistar default names)
+            "observation/images/left_wrist_camera",
+            "observation.images.left_wrist_camera",
+            "observation/images/right_wrist_camera",
+            "observation.images.right_wrist_camera",
+            "images/left_wrist_camera",
+            "images.left_wrist_camera",
+            "images/right_wrist_camera",
+            "images.right_wrist_camera",
         ]
 
         base_raw = _get_first(

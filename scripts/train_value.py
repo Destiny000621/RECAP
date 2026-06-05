@@ -32,6 +32,7 @@ if str(SRC_ROOT) not in sys.path:
 
 import etils.epath as epath
 import flax.nnx as nnx
+import flax.struct
 from flax.training import common_utils
 import jax
 import jax.numpy as jnp
@@ -133,8 +134,12 @@ class GemmaValueTokenizer:
         state["_tokenizer"] = None
         return state
 
-    def tokenize(self, prompt: str, state: jnp.ndarray | None = None) -> tuple[jnp.ndarray, jnp.ndarray]:
-        del state
+    def tokenize(self, prompt: str, state: jnp.ndarray | None = None,
+                 adv_ind: str | None = None, *, adv_ind_dropout: bool = False,
+                 **_ignored) -> tuple[jnp.ndarray, jnp.ndarray]:
+        # Value model doesn't condition on adv_ind (only the policy does); accept
+        # and discard the extra args that pi0.6's TokenizePrompt now passes.
+        del state, adv_ind, adv_ind_dropout, _ignored
 
         tokenizer = self._get_tokenizer()
         text = f"{str(prompt).rstrip()}\nValue:"
@@ -169,9 +174,20 @@ def build_value_data_config(
     *,
     tokenizer_path: str | None,
 ) -> _config.DataConfig:
+    # DataConfig switched from `local_data_dir` to `repo_id`. Derive a
+    # `local/<basename>` repo_id and rely on the lerobot cache symlink
+    # (see docs/pi06_train_runbook.md prereqs) to resolve it back to the
+    # original on-disk path.
+    repo_id = f"local/{Path(local_data_dir).name}"
     return _config.DataConfig(
-        local_data_dir=local_data_dir,
+        repo_id=repo_id,
         prompt_from_task=True,
+        # The value model only needs a single-frame observation; no action chunks.
+        # Set to empty so lerobot doesn't try to delta_timestamps-sample a
+        # column the value pipeline doesn't consume. (Avoids KeyErrors when the
+        # dataset uses the singular "action" column — limb's convention — rather
+        # than the openpi default "actions" plural.)
+        action_sequence_keys=(),
         data_transforms=_transforms.Group(
             inputs=[RemapValueLabelKey(), value_policy.ValueInputs()],
         ),
@@ -222,13 +238,22 @@ def _wandb_sanitize_config(config: dict) -> dict:
     return sanitized
 
 
-@dataclasses.dataclass
-class TrainState:
+class TrainState(flax.struct.PyTreeNode):
+    """JAX-pytree TrainState. The original plain @dataclasses.dataclass is not
+    traversable by ``jax.tree.map`` / ``jax.jit``, so ``device_put`` and
+    ``jit`` calls that take the whole TrainState as input would error with
+    "Cannot interpret value of type ... as an abstract array". Converting to
+    a ``flax.struct.PyTreeNode`` registers it as a pytree.
+
+    ``model_def`` is a static GraphDef (not an array), so mark it
+    ``pytree_node=False`` to prevent JAX from tracing it.
+    """
+
     step: int
     params: nnx.State
-    model_def: nnx.GraphDef
+    model_def: nnx.GraphDef = flax.struct.field(pytree_node=False)
     opt_state: optax.OptState
-    ema_params: nnx.State | None = None  
+    ema_params: nnx.State | None = None
 
 
 FREEZE_MODES = ("none", "siglip_only", "all_backbones")
@@ -769,7 +794,9 @@ def main():
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
     # 从恢复的步数开始训练
-    start_step = train_state.step
+    # train_state.step is a JAX array (TrainState is a flax.struct.PyTreeNode),
+    # but tqdm needs a Python int for its timedelta math — cast.
+    start_step = int(train_state.step)
     total_steps = args.num_train_steps
     pbar = tqdm.tqdm(
         range(start_step, total_steps),

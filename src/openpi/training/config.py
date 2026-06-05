@@ -242,6 +242,12 @@ class LeRobotAlohaDataConfig(DataConfigFactory):
     # the space used by the pi internal runtime which was used to train the base model. People who
     # use standard Aloha data should set this to true.
     adapt_to_pi: bool = True
+    # PiStar / pi0.6 RECAP: when the model has ``pistar=True``, the tokenizer
+    # ingests an ``adv_ind`` string per sample. ``adv_ind_dropout=True`` is
+    # used during training (lets the policy learn under both tagged and
+    # dropped conditions); set to False at inference. Ignored when the model
+    # is not pistar — the underlying tokenizer flag also gates on it.
+    adv_ind_dropout: bool = True
 
     # Repack transforms.
     repack_transforms: tyro.conf.Suppress[_transforms.Group] = dataclasses.field(
@@ -273,7 +279,10 @@ class LeRobotAlohaDataConfig(DataConfigFactory):
                 outputs=[_transforms.AbsoluteActions(delta_action_mask)],
             )
 
-        model_transforms = ModelTransformFactory(default_prompt=self.default_prompt)(model_config)
+        model_transforms = ModelTransformFactory(
+            default_prompt=self.default_prompt,
+            adv_ind_dropout=self.adv_ind_dropout,
+        )(model_config)
 
         return dataclasses.replace(
             self.create_base_config(assets_dirs, model_config),
@@ -1106,6 +1115,487 @@ _CONFIGS = [
         num_train_steps=30_000,
         keep_period=10_000,
     ),
+    # --- YAM bimanual (limb) PiStar configs ----------------------------------
+    # Plan-C path: skip Stages 4-5 (VLM value model + label_advantage), train
+    # PiStar directly on a `limb convert-lerobot --pistar` dataset whose
+    # `adv_ind` is the limb-supplied initial labeling ("positive" on
+    # intervention=1 / DAgger CORRECTING frames, "none" elsewhere).
+    #
+    # The dataset is produced by `docs/dagger_for_pi06.md`:
+    #   * collect with `configs/yam_dagger_pi0_bimanual.yaml + dagger_collection.yaml`
+    #   * convert with `limb convert-lerobot --pistar --include-arms left right`
+    #   * v3→v2.1 with `openpi/scripts/convert_v3_to_v21.py`
+    #
+    # Mirrors the openpi-yam SFT config (`pi05_yam_vial_30fps` in the user's
+    # openpi tree) — same Aloha repack with YAM camera/state names, same
+    # `adapt_to_pi=False` because YAM is not Trossen Aloha, same pi05_base
+    # weight loader — plus `pistar=True` + the `adv_ind` repack entry that
+    # makes the tokenizer see the advantage string.
+    TrainConfig(
+        name="pi06_yam_vial_30fps",
+        project_name="pistar",
+        model=pi0_config.Pi0Config(pi05=True, pistar=True),
+        data=LeRobotAlohaDataConfig(
+            repo_id="local/vial_rollout_v1_v21",
+            assets=AssetsConfig(
+                assets_dir="gs://openpi-assets/checkpoints/pi05_base/assets",
+                asset_id="trossen",
+            ),
+            adapt_to_pi=False,
+            default_prompt="Use one arm to grasp the papercup and hand it over to the other arm",
+            adv_ind_dropout=True,
+            repack_transforms=_transforms.Group(
+                inputs=[
+                    _transforms.RepackTransform(
+                        {
+                            "images": {
+                                "cam_high": "observation.images.head_camera",
+                                "cam_left_wrist": "observation.images.left_wrist_camera",
+                                "cam_right_wrist": "observation.images.right_wrist_camera",
+                            },
+                            "state": "observation.state",
+                            "actions": "action",
+                            "adv_ind": "adv_ind",
+                        }
+                    )
+                ]
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
+        num_train_steps=5_000,
+        batch_size=56,
+        num_workers=8,
+    ),
+    # Inference variant: same as above but adv_ind_dropout=False so the tag is
+    # always present at serving time (limb's policy server pins adv_ind="positive"
+    # via the prompt path / model config — see docs/pi06_stages_4_5_runbook.md).
+    TrainConfig(
+        name="pi06_yam_vial_30fps_infer",
+        project_name="pistar",
+        model=pi0_config.Pi0Config(pi05=True, pistar=True),
+        data=LeRobotAlohaDataConfig(
+            repo_id="local/vial_rollout_v1_v21",
+            assets=AssetsConfig(
+                assets_dir="gs://openpi-assets/checkpoints/pi05_base/assets",
+                asset_id="trossen",
+            ),
+            adapt_to_pi=False,
+            default_prompt="Use one arm to grasp the papercup and hand it over to the other arm",
+            adv_ind_dropout=False,
+            repack_transforms=_transforms.Group(
+                inputs=[
+                    _transforms.RepackTransform(
+                        {
+                            "images": {
+                                "cam_high": "observation.images.head_camera",
+                                "cam_left_wrist": "observation.images.left_wrist_camera",
+                                "cam_right_wrist": "observation.images.right_wrist_camera",
+                            },
+                            "state": "observation.state",
+                            "actions": "action",
+                            "adv_ind": "adv_ind",
+                        }
+                    )
+                ]
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
+        num_train_steps=5_000,
+        batch_size=56,
+        num_workers=8,
+    ),
+    # ---- Single-GPU (LoRA) variants -----------------------------------------
+    # The full fine-tune above needs ~80 GB just to fit AdamW state; LoRA only
+    # trains rank adapters (~5% of params), drops the optimizer state by 20×, and
+    # fits comfortably on a 24 GB consumer GPU (RTX 4090/5090). Same Aloha
+    # repack, same adv_ind passthrough, same default prompt.
+    TrainConfig(
+        name="pi06_yam_vial_30fps_lora",
+        project_name="pistar",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            pistar=True,
+            paligemma_variant="gemma_2b_lora",
+            action_expert_variant="gemma_300m_lora",
+        ),
+        data=LeRobotAlohaDataConfig(
+            repo_id="local/vial_rollout_v1_v21",
+            assets=AssetsConfig(
+                assets_dir="gs://openpi-assets/checkpoints/pi05_base/assets",
+                asset_id="trossen",
+            ),
+            adapt_to_pi=False,
+            default_prompt="Use one arm to grasp the papercup and hand it over to the other arm",
+            adv_ind_dropout=True,
+            repack_transforms=_transforms.Group(
+                inputs=[
+                    _transforms.RepackTransform(
+                        {
+                            "images": {
+                                "cam_high": "observation.images.head_camera",
+                                "cam_left_wrist": "observation.images.left_wrist_camera",
+                                "cam_right_wrist": "observation.images.right_wrist_camera",
+                            },
+                            "state": "observation.state",
+                            "actions": "action",
+                            "adv_ind": "adv_ind",
+                        }
+                    )
+                ]
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
+        # Freeze everything except LoRA adapters.
+        freeze_filter=pi0_config.Pi0Config(
+            pi05=True,
+            pistar=True,
+            paligemma_variant="gemma_2b_lora",
+            action_expert_variant="gemma_300m_lora",
+        ).get_freeze_filter(),
+        ema_decay=None,                  # EMA off for LoRA — pattern matches the pi0_aloha_lora configs
+        num_train_steps=5_000,
+        batch_size=4,                    # Conservative for 24 GB; bump to 8 if you have headroom
+        num_workers=4,
+    ),
+    TrainConfig(
+        name="pi06_yam_vial_30fps_lora_infer",
+        project_name="pistar",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            pistar=True,
+            paligemma_variant="gemma_2b_lora",
+            action_expert_variant="gemma_300m_lora",
+        ),
+        data=LeRobotAlohaDataConfig(
+            repo_id="local/vial_rollout_v1_v21",
+            assets=AssetsConfig(
+                assets_dir="gs://openpi-assets/checkpoints/pi05_base/assets",
+                asset_id="trossen",
+            ),
+            adapt_to_pi=False,
+            default_prompt="Use one arm to grasp the papercup and hand it over to the other arm",
+            adv_ind_dropout=False,
+            repack_transforms=_transforms.Group(
+                inputs=[
+                    _transforms.RepackTransform(
+                        {
+                            "images": {
+                                "cam_high": "observation.images.head_camera",
+                                "cam_left_wrist": "observation.images.left_wrist_camera",
+                                "cam_right_wrist": "observation.images.right_wrist_camera",
+                            },
+                            "state": "observation.state",
+                            "actions": "action",
+                            "adv_ind": "adv_ind",
+                        }
+                    )
+                ]
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
+        freeze_filter=pi0_config.Pi0Config(
+            pi05=True,
+            pistar=True,
+            paligemma_variant="gemma_2b_lora",
+            action_expert_variant="gemma_300m_lora",
+        ).get_freeze_filter(),
+        ema_decay=None,
+        num_train_steps=5_000,
+        batch_size=4,
+        num_workers=4,
+    ),
+    # ---- LoRA, starting from a YAM-task SFT checkpoint ----------------------
+    # Initializes from a previously-trained pi0.5 SFT for the YAM vial task
+    # (https://huggingface.co/ttotmoon/yam-vial-place-pi05-v1, expected locally
+    # at /home/ssc/checkpoints/yam-vial-place-pi05-v1/params) instead of the
+    # generic pi05_base. CheckpointWeightLoader merges into the LoRA-variant
+    # param tree, so the SFT base weights are kept and the LoRA adapters get
+    # initialized from random (see `_merge_params(missing_regex=".*lora.*")`
+    # in weight_loaders.py). This is the right starting point when you have
+    # an SFT pi0.5 that already knows the task: pi0.6 then learns the
+    # advantage-conditioning token on top.
+    TrainConfig(
+        name="pi06_yam_vial_30fps_lora_from_sft",
+        project_name="pistar",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            pistar=True,
+            paligemma_variant="gemma_2b_lora",
+            action_expert_variant="gemma_300m_lora",
+        ),
+        data=LeRobotAlohaDataConfig(
+            repo_id="local/vial_rollout_v1_v21",
+            assets=AssetsConfig(
+                assets_dir="gs://openpi-assets/checkpoints/pi05_base/assets",
+                asset_id="trossen",
+            ),
+            adapt_to_pi=False,
+            default_prompt="Use one arm to grasp the papercup and hand it over to the other arm",
+            adv_ind_dropout=True,
+            repack_transforms=_transforms.Group(
+                inputs=[
+                    _transforms.RepackTransform(
+                        {
+                            "images": {
+                                "cam_high": "observation.images.head_camera",
+                                "cam_left_wrist": "observation.images.left_wrist_camera",
+                                "cam_right_wrist": "observation.images.right_wrist_camera",
+                            },
+                            "state": "observation.state",
+                            "actions": "action",
+                            "adv_ind": "adv_ind",
+                        }
+                    )
+                ]
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "/home/ssc/checkpoints/yam-vial-place-pi05-v1/params"
+        ),
+        freeze_filter=pi0_config.Pi0Config(
+            pi05=True,
+            pistar=True,
+            paligemma_variant="gemma_2b_lora",
+            action_expert_variant="gemma_300m_lora",
+        ).get_freeze_filter(),
+        ema_decay=None,
+        num_train_steps=5_000,
+        batch_size=4,
+        num_workers=4,
+    ),
+    TrainConfig(
+        name="pi06_yam_vial_30fps_lora_from_sft_infer",
+        project_name="pistar",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            pistar=True,
+            paligemma_variant="gemma_2b_lora",
+            action_expert_variant="gemma_300m_lora",
+        ),
+        data=LeRobotAlohaDataConfig(
+            repo_id="local/vial_rollout_v1_v21",
+            assets=AssetsConfig(
+                assets_dir="gs://openpi-assets/checkpoints/pi05_base/assets",
+                asset_id="trossen",
+            ),
+            adapt_to_pi=False,
+            default_prompt="Use one arm to grasp the papercup and hand it over to the other arm",
+            adv_ind_dropout=False,
+            repack_transforms=_transforms.Group(
+                inputs=[
+                    _transforms.RepackTransform(
+                        {
+                            "images": {
+                                "cam_high": "observation.images.head_camera",
+                                "cam_left_wrist": "observation.images.left_wrist_camera",
+                                "cam_right_wrist": "observation.images.right_wrist_camera",
+                            },
+                            "state": "observation.state",
+                            "actions": "action",
+                            "adv_ind": "adv_ind",
+                        }
+                    )
+                ]
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "/home/ssc/checkpoints/yam-vial-place-pi05-v1/params"
+        ),
+        freeze_filter=pi0_config.Pi0Config(
+            pi05=True,
+            pistar=True,
+            paligemma_variant="gemma_2b_lora",
+            action_expert_variant="gemma_300m_lora",
+        ).get_freeze_filter(),
+        ema_decay=None,
+        num_train_steps=5_000,
+        batch_size=4,
+        num_workers=4,
+    ),
+    # ---- Stage 6 — full RECAP on the VLM-relabeled dataset --------------------
+    # Same architecture/repack as pi06_yam_vial_30fps_lora_from_sft; only the
+    # `repo_id` changes to the dataset Stage 5 produced (the autonomous frames
+    # there are VLM-classified positive/negative instead of all "none").
+    TrainConfig(
+        name="pi06_yam_vial_30fps_lora_from_sft_recap",
+        project_name="pistar",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            pistar=True,
+            paligemma_variant="gemma_2b_lora",
+            action_expert_variant="gemma_300m_lora",
+        ),
+        data=LeRobotAlohaDataConfig(
+            repo_id="local/vial_rollout_v1_v21_vlm_label",   # ← Stage 5 output
+            assets=AssetsConfig(
+                assets_dir="gs://openpi-assets/checkpoints/pi05_base/assets",
+                asset_id="trossen",
+            ),
+            adapt_to_pi=False,
+            default_prompt="Use one arm to grasp the papercup and hand it over to the other arm",
+            adv_ind_dropout=True,
+            repack_transforms=_transforms.Group(
+                inputs=[
+                    _transforms.RepackTransform(
+                        {
+                            "images": {
+                                "cam_high": "observation.images.head_camera",
+                                "cam_left_wrist": "observation.images.left_wrist_camera",
+                                "cam_right_wrist": "observation.images.right_wrist_camera",
+                            },
+                            "state": "observation.state",
+                            "actions": "action",
+                            "adv_ind": "adv_ind",
+                        }
+                    )
+                ]
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "/home/ssc/checkpoints/yam-vial-place-pi05-v1/params"
+        ),
+        freeze_filter=pi0_config.Pi0Config(
+            pi05=True,
+            pistar=True,
+            paligemma_variant="gemma_2b_lora",
+            action_expert_variant="gemma_300m_lora",
+        ).get_freeze_filter(),
+        ema_decay=None,
+        num_train_steps=5_000,
+        batch_size=4,
+        num_workers=4,
+    ),
+    TrainConfig(
+        name="pi06_yam_vial_30fps_lora_from_sft_recap_infer",
+        project_name="pistar",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            pistar=True,
+            paligemma_variant="gemma_2b_lora",
+            action_expert_variant="gemma_300m_lora",
+        ),
+        data=LeRobotAlohaDataConfig(
+            repo_id="local/vial_rollout_v1_v21_vlm_label",
+            assets=AssetsConfig(
+                assets_dir="gs://openpi-assets/checkpoints/pi05_base/assets",
+                asset_id="trossen",
+            ),
+            adapt_to_pi=False,
+            default_prompt="Use one arm to grasp the papercup and hand it over to the other arm",
+            adv_ind_dropout=False,                  # positive tag always present at serving
+            repack_transforms=_transforms.Group(
+                inputs=[
+                    _transforms.RepackTransform(
+                        {
+                            "images": {
+                                "cam_high": "observation.images.head_camera",
+                                "cam_left_wrist": "observation.images.left_wrist_camera",
+                                "cam_right_wrist": "observation.images.right_wrist_camera",
+                            },
+                            "state": "observation.state",
+                            "actions": "action",
+                            "adv_ind": "adv_ind",
+                        }
+                    )
+                ]
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "/home/ssc/checkpoints/yam-vial-place-pi05-v1/params"
+        ),
+        freeze_filter=pi0_config.Pi0Config(
+            pi05=True,
+            pistar=True,
+            paligemma_variant="gemma_2b_lora",
+            action_expert_variant="gemma_300m_lora",
+        ).get_freeze_filter(),
+        ema_decay=None,
+        num_train_steps=5_000,
+        batch_size=4,
+        num_workers=4,
+    ),
+    # ---- Stage 6 — FULL fine-tune RECAP on the VLM-relabeled dataset ----------
+    # The multi-GPU (e.g. 8× H100) variant of pi06_yam_vial_30fps_lora_from_sft_recap.
+    # Same Aloha repack + adv_ind passthrough + SFT init; differences vs the LoRA
+    # variant: no LoRA paligemma/action_expert variants, no freeze_filter (the
+    # whole backbone trains), and the larger full fine-tune batch_size that
+    # pi06_yam_vial_30fps already uses.
+    TrainConfig(
+        name="pi06_yam_vial_30fps_from_sft_recap",
+        project_name="pistar",
+        model=pi0_config.Pi0Config(pi05=True, pistar=True),
+        data=LeRobotAlohaDataConfig(
+            repo_id="local/vial_rollout_v1_v21_vlm_label",   # ← Stage 5 output
+            assets=AssetsConfig(
+                assets_dir="gs://openpi-assets/checkpoints/pi05_base/assets",
+                asset_id="trossen",
+            ),
+            adapt_to_pi=False,
+            default_prompt="Use one arm to grasp the papercup and hand it over to the other arm",
+            adv_ind_dropout=True,
+            repack_transforms=_transforms.Group(
+                inputs=[
+                    _transforms.RepackTransform(
+                        {
+                            "images": {
+                                "cam_high": "observation.images.head_camera",
+                                "cam_left_wrist": "observation.images.left_wrist_camera",
+                                "cam_right_wrist": "observation.images.right_wrist_camera",
+                            },
+                            "state": "observation.state",
+                            "actions": "action",
+                            "adv_ind": "adv_ind",
+                        }
+                    )
+                ]
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "/home/ssc/checkpoints/yam-vial-place-pi05-v1/params"
+        ),
+        num_train_steps=5_000,
+        batch_size=56,
+        num_workers=8,
+    ),
+    TrainConfig(
+        name="pi06_yam_vial_30fps_from_sft_recap_infer",
+        project_name="pistar",
+        model=pi0_config.Pi0Config(pi05=True, pistar=True),
+        data=LeRobotAlohaDataConfig(
+            repo_id="local/vial_rollout_v1_v21_vlm_label",
+            assets=AssetsConfig(
+                assets_dir="gs://openpi-assets/checkpoints/pi05_base/assets",
+                asset_id="trossen",
+            ),
+            adapt_to_pi=False,
+            default_prompt="Use one arm to grasp the papercup and hand it over to the other arm",
+            adv_ind_dropout=False,                  # positive tag always present at serving
+            repack_transforms=_transforms.Group(
+                inputs=[
+                    _transforms.RepackTransform(
+                        {
+                            "images": {
+                                "cam_high": "observation.images.head_camera",
+                                "cam_left_wrist": "observation.images.left_wrist_camera",
+                                "cam_right_wrist": "observation.images.right_wrist_camera",
+                            },
+                            "state": "observation.state",
+                            "actions": "action",
+                            "adv_ind": "adv_ind",
+                        }
+                    )
+                ]
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "/home/ssc/checkpoints/yam-vial-place-pi05-v1/params"
+        ),
+        num_train_steps=5_000,
+        batch_size=56,
+        num_workers=8,
+    ),
+    # --- end YAM bimanual PiStar configs -------------------------------------
+
     # Pi05_star model fine-tuning on local toy dataset config
     TrainConfig(
         name="pi05_star_toy",

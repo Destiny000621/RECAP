@@ -300,8 +300,13 @@ class GemmaValueTokenizer:
         state["_tokenizer"] = None
         return state
 
-    def tokenize(self, prompt: str, state: Any | None = None) -> tuple[np.ndarray, np.ndarray]:
-        del state
+    def tokenize(self, prompt: str, state: Any | None = None,
+                 adv_ind: str | None = None, *, adv_ind_dropout: bool = False,
+                 **_ignored) -> tuple[np.ndarray, np.ndarray]:
+        # Value model doesn't condition on adv_ind (only the policy does); accept
+        # and discard the extra args that pi0.6's TokenizePrompt now passes.
+        # Same patch as scripts/train_value.py's GemmaValueTokenizer.
+        del state, adv_ind, adv_ind_dropout, _ignored
 
         tokenizer = self._get_tokenizer()
         text = f"{str(prompt).rstrip()}\nValue:"
@@ -708,9 +713,17 @@ def _build_inference_dataset(
     import openpi.training.config as _config
     import openpi.training.data_loader as _data_loader
 
+    # DataConfig switched from `local_data_dir` to `repo_id`. Derive a
+    # `local/<basename>` repo_id and rely on the lerobot cache symlink
+    # (see docs/setup.md prereqs) to resolve back to the on-disk path.
+    repo_id = f"local/{Path(str(data_dir)).name}"
     data_config = _config.DataConfig(
-        local_data_dir=str(data_dir),
+        repo_id=repo_id,
         prompt_from_task=False,
+        # The label_advantage pipeline doesn't sample action chunks; pass empty
+        # so lerobot doesn't try to delta_timestamps-sample an "actions" column
+        # that limb writes as "action" (singular).
+        action_sequence_keys=(),
         data_transforms=_transforms.Group(
             inputs=[
                 LabelAdvantageInputs(

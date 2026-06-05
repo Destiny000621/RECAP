@@ -339,6 +339,48 @@ def create_torch_data_loader(
     return DataLoaderImpl(data_config, data_loader)
 
 
+def create_value_data_loader(
+    data_config: _config.DataConfig,
+    *,
+    model_config: _model.BaseModelConfig,
+    batch_size: int,
+    sharding: jax.sharding.Sharding | None = None,
+    skip_norm_stats: bool = False,
+    shuffle: bool = False,
+    num_batches: int | None = None,
+    num_workers: int = 0,
+    seed: int = 0,
+    framework: str = "jax",
+) -> "DataLoader":
+    """Value-model data loader. Same pipeline as ``create_torch_data_loader`` but
+    pinned to ``action_horizon=1`` because the value model predicts ``V(o_t)``
+    for a single timestep (no action chunk sampled per frame).
+
+    Args mirror the train_value.py call site exactly. The value-model-specific
+    transforms (``RemapValueLabelKey`` + ``value_policy.ValueInputs`` +
+    ``GemmaValueTokenizer``) are configured in ``data_config`` upstream
+    (``scripts/train_value.py:build_value_data_config``).
+    """
+    # ValueModelConfig has `action_horizon=1` by default; honor it if the
+    # caller set anything else, but value training really shouldn't need >1.
+    action_horizon = getattr(model_config, "action_horizon", 1) or 1
+    policy_loader = create_torch_data_loader(
+        data_config,
+        model_config=model_config,
+        action_horizon=action_horizon,
+        batch_size=batch_size,
+        sharding=sharding,
+        skip_norm_stats=skip_norm_stats,
+        shuffle=shuffle,
+        num_batches=num_batches,
+        num_workers=num_workers,
+        seed=seed,
+        framework=framework,
+    )
+    # Swap the policy-shape iterator for the value-shape one.
+    return _ValueDataLoaderImpl(policy_loader.data_config(), policy_loader._data_loader)
+
+
 def create_rlds_data_loader(
     data_config: _config.DataConfig,
     action_horizon: int,
@@ -416,6 +458,10 @@ class TorchDataLoader:
 
         if len(dataset) < local_batch_size:
             raise ValueError(f"Local batch size ({local_batch_size}) is larger than the dataset size ({len(dataset)}).")
+
+        # Keep a reference to the dataset so callers (e.g. train_value.py) can
+        # query its length via DataLoaderImpl.dataset.
+        self._dataset = dataset
 
         # Store sharding - None for PyTorch, JAX sharding for JAX
         self._sharding = sharding
@@ -537,6 +583,39 @@ class DataLoaderImpl(DataLoader):
     def data_config(self) -> _config.DataConfig:
         return self._data_config
 
+    @property
+    def dataset(self):
+        """Expose the underlying transformed dataset. train_value.py logs
+        ``len(data_loader.dataset)`` to print frame counts."""
+        return getattr(self._data_loader, "_dataset", None)
+
+    def __len__(self) -> int:
+        """Number of batches per epoch. train_value.py's prefetch loop
+        does ``range(min(3, len(data_loader)))`` so this needs to return
+        a sensible int. Delegate to the torch DataLoader when available,
+        else compute from the dataset + batch size."""
+        inner = getattr(self._data_loader, "_data_loader", None)
+        if inner is not None and hasattr(inner, "__len__"):
+            try:
+                return len(inner)
+            except TypeError:
+                pass
+        ds = self.dataset
+        bs = getattr(self._data_loader, "_local_batch_size", None) or 1
+        if ds is not None:
+            return max(1, len(ds) // bs)
+        return 0
+
     def __iter__(self):
         for batch in self._data_loader:
             yield _model.Observation.from_dict(batch), batch["actions"]
+
+
+class _ValueDataLoaderImpl(DataLoaderImpl):
+    """Value-model variant: yields (Observation, value-target) per batch
+    instead of (Observation, action-chunk). The target is the per-frame
+    scalar V supervision (column ``value`` after ``ValueInputs``)."""
+
+    def __iter__(self):
+        for batch in self._data_loader:
+            yield _model.Observation.from_dict(batch), batch["value"]

@@ -20,7 +20,9 @@ import dataclasses
 import functools
 
 from etils import edc
-from etils.edc import ContextStack
+# NOTE: top-level `from etils.edc import ContextStack` removed — newer etils
+# (>=1.12) no longer exposes ContextStack here, and the file already has a
+# try/except fallback below that handles its absence via `_ContextStack`.
 from etils.epy import _internal
 from flax import linen as nn
 import jax
@@ -34,15 +36,12 @@ class _DTypeState:
   exclude: list[str] | None
 
 
-try:
-  _ContextStack = edc.ContextStack
-except AttributeError:
-  class _ContextStack(list):
-    @property
-    def stack(self) -> "_ContextStack":
-      return self
-
-  _ContextStack = _ContextStack
+# Modern etils (>=1.12) no longer exposes edc.ContextStack; use a local
+# list-based fallback that satisfies the few usages below.
+class _ContextStack(list):
+  @property
+  def stack(self) -> "_ContextStack":
+    return self
 
 _dtypes_stack = _ContextStack[_DTypeState]()
 
@@ -99,7 +98,7 @@ def _mock_flax_module_param() -> None:
 def _should_replace_dtype(
     *,
     module: nn.Module,
-    stack: edc.ContextStack[_DTypeState],
+    stack: _ContextStack[_DTypeState],
 ) -> bool:
   """Whether or not the dtype should be replaced."""
   if not module.is_initializing() or not stack:

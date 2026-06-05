@@ -84,6 +84,13 @@ class AlohaInputs(transforms.DataTransformFn):
         if "prompt" in data:
             inputs["prompt"] = data["prompt"]
 
+        # PiStar / pi0.6 RECAP — passthrough of the advantage-conditioning string.
+        # The repack on the YAM TrainConfig (model_config.pistar=True) maps
+        # "adv_ind" → "adv_ind"; the tokenizer downstream consumes it when
+        # `adv_ind_input=model_config.pistar`. Matches libero_policy / piper_policy.
+        if "adv_ind" in data:
+            inputs["adv_ind"] = data["adv_ind"]
+
         return inputs
 
 
