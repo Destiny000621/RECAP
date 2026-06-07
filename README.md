@@ -452,6 +452,7 @@ duplicate copies of the data-config block and `GemmaValueTokenizer`).
 ## References
 
 - pi0.6 / RECAP paper: [π★₀.₆: a VLA That Learns From Experience](https://arxiv.org/abs/2511.14759)
+- pistar: https://github.com/ybpy/pistar
 - Reference RECAP pipeline (sim-only, LIBERO): [RLinf RECAP page](https://rlinf.readthedocs.io/en/latest/rst_source/examples/embodied/recap.html)
 - openpi (upstream): https://github.com/Physical-Intelligence/openpi
 - VLM value-model checkpoint: [`ybpy/vlm_ckpt`](https://huggingface.co/ybpy/vlm_ckpt)
