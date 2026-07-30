@@ -212,11 +212,21 @@ class Pi0(_model.BaseModel):
         )
         v_t = self.action_out_proj(suffix_out[:, -self.action_horizon :])
 
+        # Per-arm flow-loss mask: 0 on action dims we must not supervise (e.g. a
+        # frozen arm during a single-arm correction). (b, s) -> (b, 1, s),
+        # broadcast over the action horizon. None => all-ones (pre-RECAP behavior).
+        sq = jnp.square(v_t - u_t)  # (b, ah, s)
+        if observation.action_mask is not None:
+            amask = observation.action_mask[:, None, :]  # (b, 1, s)
+            per_dim_mean = jnp.sum(sq * amask, axis=-1) / jnp.clip(jnp.sum(amask, axis=-1), 1.0)
+        else:
+            per_dim_mean = jnp.mean(sq, axis=-1)
+
         if not self.pistar:
-            return jnp.mean(jnp.square(v_t - u_t))
+            return jnp.mean(per_dim_mean)
         else:
             # Compute per-timestep loss: (b, ah)
-            per_timestep_loss = jnp.mean(jnp.square(v_t - u_t), axis=-1)
+            per_timestep_loss = per_dim_mean
             # Compute per-sample loss: (b,)
             per_sample_loss = jnp.mean(per_timestep_loss, axis=-1)
             # Apply time-based weighting: weight = 0.5 * exp(-0.5*(1-time))

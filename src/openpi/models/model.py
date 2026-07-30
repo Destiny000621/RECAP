@@ -106,6 +106,12 @@ class Observation(Generic[ArrayT]):
     # Token loss mask (for FAST autoregressive model).
     token_loss_mask: at.Bool[ArrayT, "*b l"] | None = None
 
+    # Per-(action)-dimension flow-loss mask, padded to the model action dim.
+    # 0 = do not supervise this action dim on this sample (e.g. a frozen arm
+    # during a single-arm correction). None => supervise everything (default,
+    # identical to pre-RECAP behavior). Used by Pi0.compute_loss.
+    action_mask: at.Float[ArrayT, "*b s"] | None = None
+
     @classmethod
     def from_dict(cls, data: at.PyTree[ArrayT]) -> "Observation[ArrayT]":
         """This method defines the mapping between unstructured data (i.e., nested dict) to the structured Observation format."""
@@ -126,6 +132,7 @@ class Observation(Generic[ArrayT]):
             tokenized_prompt_mask=data.get("tokenized_prompt_mask"),
             token_ar_mask=data.get("token_ar_mask"),
             token_loss_mask=data.get("token_loss_mask"),
+            action_mask=data.get("action_mask"),
         )
 
     def to_dict(self) -> at.PyTree[ArrayT]:

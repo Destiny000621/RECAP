@@ -19,37 +19,40 @@ class PaligemmaTokenizer:
         with path.open("rb") as f:
             self._tokenizer = sentencepiece.SentencePieceProcessor(model_proto=f.read())
 
-    def tokenize(self, 
-                 prompt: str, 
-                 state: np.ndarray | None = None, 
-                 adv_ind: str | None = None, 
+    def tokenize(self,
+                 prompt: str,
+                 state: np.ndarray | None = None,
+                 adv_ind: str | None = None,
                  adv_ind_dropout: bool = True,
+                 adv_ind_left: str | None = None,
+                 adv_ind_right: str | None = None,
                 ) -> tuple[np.ndarray, np.ndarray]:
         cleaned_text = prompt.strip().replace("_", " ").replace("\n", " ")
+
+        # Advantage-conditioning clause. Per-arm (adv_ind_left/right) takes
+        # precedence over the single adv_ind. The 30% training dropout drops the
+        # WHOLE clause (both arms together), so inference (dropout off) always
+        # sees it. An empty clause reproduces the no-advantage prompt exactly,
+        # so single-adv and no-adv datasets are unaffected.
+        use_adv = (adv_ind_left is not None and adv_ind_right is not None) or adv_ind is not None
+        adv_clause = ""
+        if use_adv and not (adv_ind_dropout and np.random.random() < 0.3):
+            if adv_ind_left is not None and adv_ind_right is not None:
+                adv_clause = f", Left advantage: {adv_ind_left}, Right advantage: {adv_ind_right}"
+            else:
+                adv_clause = f", Advantage: {adv_ind}"
+
         if state is not None:
             # This is the Pi05 format, where the state is part of the discrete language input.
             discretized_state = np.digitize(state, bins=np.linspace(-1, 1, 256 + 1)[:-1]) - 1
             state_str = " ".join(map(str, discretized_state))
-            if adv_ind is not None:
-                # Advantage dropout: 30% probability of not using adv_ind during training only
-                # Use numpy.random to ensure reproducibility with np.random.seed()
-                if adv_ind_dropout and np.random.random() < 0.3:
-                    full_prompt = f"Task: {cleaned_text}, State: {state_str};\nAction: "
-                else:
-                    full_prompt = f"Task: {cleaned_text}, State: {state_str}, Advantage: {adv_ind};\nAction: "
-            else:
-                full_prompt = f"Task: {cleaned_text}, State: {state_str};\nAction: "
+            full_prompt = f"Task: {cleaned_text}, State: {state_str}{adv_clause};\nAction: "
             tokens = self._tokenizer.encode(full_prompt, add_bos=True)
         else:
             # This is the Pi0 format, where the state is part of the continuous action expert input.
             # tokenize "\n" separately as the "start of answer" token
-            if adv_ind is not None:
-                # Advantage dropout: 30% probability of not using adv_ind during training only
-                # Use numpy.random to ensure reproducibility with np.random.seed()
-                if adv_ind_dropout and np.random.random() < 0.3:
-                    full_prompt = f"Task: {cleaned_text};\nAction: "
-                else:
-                    full_prompt = f"Task: {cleaned_text}, Advantage: {adv_ind};\nAction: "
+            if use_adv:
+                full_prompt = f"Task: {cleaned_text}{adv_clause};\nAction: "
             else:
                 full_prompt = f"Task: {cleaned_text}, State: {state_str};\nAction: "
             tokens = self._tokenizer.encode(full_prompt, add_bos=True)

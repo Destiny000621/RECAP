@@ -148,6 +148,10 @@ available):
 mkdir -p ~/Downloads/vlm_ckpt
 HF_HUB_ENABLE_HF_TRANSFER=1 hf download ybpy/vlm_ckpt --local-dir ~/Downloads/vlm_ckpt
 ls ~/Downloads/vlm_ckpt
+
+mkdir -p /mnt/localssd/Sichang/recap/vlm_ckpt
+HF_HUB_ENABLE_HF_TRANSFER=1 hf download ybpy/vlm_ckpt --local-dir /mnt/localssd/Sichang/recap/vlm_ckpt
+ls /mnt/localssd/Sichang/recap/vlm_ckpt
 # expect:
 #   gemma-3-270m/                          (orbax checkpoint at step_00020000/)
 #   siglip2-so400m-patch14-224-jax/
@@ -232,15 +236,24 @@ v2.1 dataset.
 a 24 GB GPU at ~0.2 s/step):
 
 ```bash
+# Download datasets from HF
+hf download Sichang0621/vials_recap_v1_1_v21 \
+  --repo-type dataset \
+  --local-dir /mnt/localssd/Sichang/lerobot_home/Sichang0621/vials_recap_v1_1_v21_original
+
+export WANDB_API_KEY=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
+
+HF_LEROBOT_HOME=/mnt/localssd/Sichang/lerobot_home \
+OPENPI_VLM_CKPT_DIR=/mnt/localssd/Sichang/recap/vlm_ckpt \
 XLA_PYTHON_CLIENT_PREALLOCATE=false XLA_PYTHON_CLIENT_MEM_FRACTION=0.85 \
-  uv run python scripts/train_value.py \
-    --data_dir ~/.cache/huggingface/lerobot/local/<dataset>_v21 \
-    --checkpoint_dir checkpoints/value_model/yam_vial_v1 \
-    --batch_size 4 --num_train_steps 5000 \
-    --log_interval 100 --save_interval 1000 --val_interval 0 \
+CUDA_VISIBLE_DEVICES=0,1,2,3 uv run python scripts/train_value.py \
+    --data_dir /mnt/localssd/Sichang/lerobot_home/Sichang0621/vials_recap_v1_1_v21 \
+    --checkpoint_dir checkpoints/value_model/yam_vial_v1.1 \
+    --batch_size 64 --num_train_steps 6000 \
+    --log_interval 100 --save_interval 2000 --val_interval 0 \
     --load_pretrained \
-    --tokenizer_path ~/Downloads/vlm_ckpt/tokenizer.model \
-    --wandb_mode online --wandb_project recap-value --wandb_run_name yam_vial_v1
+    --tokenizer_path /mnt/localssd/Sichang/recap/vlm_ckpt/tokenizer.model \
+    --wandb_mode offline --wandb_project recap-value --wandb_run_name yam_vial_v1
 ```
 
 **Paper-scale (8× H100, 30k steps, batch 64):**
@@ -301,18 +314,35 @@ ln -sfn "$PWD/<dataset>_v21_vlm_label" \
 
 ```bash
 cd recap
-
-uv run python scripts/label_advantage_from_vlm.py \
-  --data_dir   ~/.cache/huggingface/lerobot/local/<dataset>_v21_vlm_label \
-  --checkpoint_dir checkpoints/value_model/yam_vial_v1/step_00005000 \
-  --tokenizer_path ~/Downloads/vlm_ckpt/tokenizer.model \
-  --batch_size 8 \
-  --lookahead 50 \
+HF_LEROBOT_HOME=/mnt/localssd/Sichang/lerobot_home \
+OPENPI_VLM_CKPT_DIR=/mnt/localssd/Sichang/recap/vlm_ckpt \
+CUDA_VISIBLE_DEVICES=4 uv run python scripts/label_advantage_from_vlm.py \
+  --data_dir /mnt/localssd/Sichang/lerobot_home/local/vials_recap_v1_1_v21 \
+  --checkpoint_dir checkpoints/value_model/yam_vial_v1.1/step_00006000 \
+  --tokenizer_path /mnt/localssd/Sichang/recap/vlm_ckpt/tokenizer.model \
+  --batch_size 32 \
+  --num_workers 32 \
+  --lookahead 25 \
   --top_percent 50 \
   --human_col intervention \
   --adv_col adv_ind \
   --base_image_col   observation.images.head_camera \
   --wrist_image_col  observation.images.left_wrist_camera \
+  --right_wrist_image_col observation.images.right_wrist_camera \
+  --use_ema
+
+HF_LEROBOT_HOME=/mnt/localssd/Sichang/lerobot_home \
+OPENPI_VLM_CKPT_DIR=/mnt/localssd/Sichang/recap/vlm_ckpt \
+CUDA_VISIBLE_DEVICES=4 uv run python scripts/label_advantage_from_vlm.py \
+  --data_dir /mnt/localssd/Sichang/lerobot_home/local/vials_recap_v1_v21_la25 \
+  --checkpoint_dir checkpoints/value_model/yam_vial_v1/step_00006000 \
+  --tokenizer_path /mnt/localssd/Sichang/recap/vlm_ckpt/tokenizer.model \
+  --batch_size 32 \
+  --num_workers 32 \
+  --lookahead 25 --top_percent 50 \
+  --human_col intervention --adv_col adv_ind \
+  --base_image_col observation.images.head_camera \
+  --wrist_image_col observation.images.left_wrist_camera \
   --right_wrist_image_col observation.images.right_wrist_camera \
   --use_ema
 ```
@@ -352,6 +382,17 @@ XLA_PYTHON_CLIENT_PREALLOCATE=true XLA_PYTHON_CLIENT_MEM_FRACTION=0.9 \
     --exp-name=stage6_v1 --overwrite
 
 # Full fine-tune RECAP (8× H100, paper-style, batch_size=56)
+cd /mnt/localssd/Sichang/recap
+export HF_LEROBOT_HOME=/mnt/localssd/Sichang/lerobot_home
+
+CUDA_VISIBLE_DEVICES=4,5,6,7 \
+XLA_PYTHON_CLIENT_PREALLOCATE=false \
+  uv run python scripts/compute_norm_stats.py --config-name pi06_yam_vial_30fps_from_sft_recap
+
+CUDA_VISIBLE_DEVICES=4,5,6,7 \
+XLA_PYTHON_CLIENT_PREALLOCATE=false \
+  uv run python scripts/train.py pi06_yam_vial_30fps_from_sft_recap --exp-name=v1 --overwrite
+
 XLA_PYTHON_CLIENT_PREALLOCATE=true XLA_PYTHON_CLIENT_MEM_FRACTION=0.9 \
   uv run python scripts/train.py pi06_yam_vial_30fps_from_sft_recap \
     --exp-name=stage6_v1 --overwrite

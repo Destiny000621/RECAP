@@ -90,6 +90,24 @@ class AlohaInputs(transforms.DataTransformFn):
         # `adv_ind_input=model_config.pistar`. Matches libero_policy / piper_policy.
         if "adv_ind" in data:
             inputs["adv_ind"] = data["adv_ind"]
+        # Per-arm advantage conditioning (pi0.6 RECAP, two tokens). TokenizePrompt
+        # prefers these over the single adv_ind when both are present.
+        if "adv_ind_left" in data:
+            inputs["adv_ind_left"] = data["adv_ind_left"]
+        if "adv_ind_right" in data:
+            inputs["adv_ind_right"] = data["adv_ind_right"]
+
+        # Per-arm flow-loss mask (YAM bimanual: left = dims 0:7, right = 7:14).
+        # 0 on a frozen arm's dims so its held pose is never regressed. Built only
+        # when the dataset carries the columns; PadStatesAndActions pads it to the
+        # model action dim with ones. adapt_to_pi=False (YAM) keeps the dim layout.
+        if "loss_mask_left" in data and "loss_mask_right" in data:
+            ml = float(np.asarray(data["loss_mask_left"]).reshape(-1)[0])
+            mr = float(np.asarray(data["loss_mask_right"]).reshape(-1)[0])
+            action_mask = np.ones((14,), dtype=np.float32)
+            action_mask[0:7] = ml
+            action_mask[7:14] = mr
+            inputs["action_mask"] = action_mask
 
         return inputs
 

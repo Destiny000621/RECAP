@@ -262,18 +262,30 @@ class TokenizePrompt(DataTransformFn):
             state = None
 
         if self.adv_ind_input:
-            # Use pop to remove adv_ind from data after consuming it
-            if (adv_ind := data.pop("adv_ind", None)) is None:
-                raise ValueError("Adv_ind is required.")
+            # Per-arm (adv_ind_left/right) takes precedence over single adv_ind.
+            # Pop all three so no strings leak into the JAX batch.
+            adv_ind_left = data.pop("adv_ind_left", None)
+            adv_ind_right = data.pop("adv_ind_right", None)
+            adv_ind = data.pop("adv_ind", None)
+            if adv_ind is None and (adv_ind_left is None or adv_ind_right is None):
+                raise ValueError("adv_ind (or both adv_ind_left and adv_ind_right) is required.")
         else:
-            # Remove adv_ind even if not used, to avoid passing strings to JAX
+            # Remove adv_ind* even if unused, to avoid passing strings to JAX.
             data.pop("adv_ind", None)
-            adv_ind = None
+            data.pop("adv_ind_left", None)
+            data.pop("adv_ind_right", None)
+            adv_ind = adv_ind_left = adv_ind_right = None
 
         if not isinstance(prompt, str):
             prompt = prompt.item()
 
-        tokens, token_masks = self.tokenizer.tokenize(prompt, state, adv_ind, adv_ind_dropout=self.adv_ind_dropout)
+        def _as_str(x):
+            return x if x is None or isinstance(x, str) else str(np.asarray(x).reshape(-1)[0])
+
+        tokens, token_masks = self.tokenizer.tokenize(
+            prompt, state, _as_str(adv_ind), adv_ind_dropout=self.adv_ind_dropout,
+            adv_ind_left=_as_str(adv_ind_left), adv_ind_right=_as_str(adv_ind_right),
+        )
         return {**data, "tokenized_prompt": tokens, "tokenized_prompt_mask": token_masks}
 
 
@@ -345,7 +357,42 @@ class PadStatesAndActions(DataTransformFn):
         data["state"] = pad_to_dim(data["state"], self.model_action_dim, axis=-1)
         if "actions" in data:
             data["actions"] = pad_to_dim(data["actions"], self.model_action_dim, axis=-1)
+        if "action_mask" in data:
+            # Pad the per-arm flow-loss mask with 1.0 so padded action dims stay
+            # supervised exactly as before (pad_to_dim would zero-pad them).
+            am = np.asarray(data["action_mask"], dtype=np.float32)
+            pad = self.model_action_dim - am.shape[-1]
+            if pad > 0:
+                am = np.pad(am, [(0, 0)] * (am.ndim - 1) + [(0, pad)], constant_values=1.0)
+            data["action_mask"] = am
         return data
+
+
+@dataclasses.dataclass(frozen=True)
+class SubtractBaseAction(DataTransformFn):
+    """Residual-action target: replace `actions` with `actions - base_action`.
+
+    Flavor-A residual RECAP. Runs BEFORE AlohaInputs (on the raw repacked action
+    chunk), so the actor learns the residual on top of the frozen pi0.5 base. Only
+    active when `base_action` is present — absolute-action configs never map it, so
+    the baseline path is byte-identical. `base_action` is the precomputed
+    deterministic base chunk (same shape as the action chunk); see
+    scripts/precompute_base_action.py. Assumes a linear action space
+    (adapt_to_pi=False, the YAM setting) so raw subtraction == residual.
+    """
+
+    actions_key: str = "actions"
+    base_key: str = "base_action"
+
+    def __call__(self, data: DataDict) -> DataDict:
+        if self.base_key not in data:
+            return data
+        out = dict(data)
+        out[self.actions_key] = np.asarray(data[self.actions_key], dtype=np.float32) - np.asarray(
+            data[self.base_key], dtype=np.float32
+        )
+        out.pop(self.base_key, None)  # consumed; don't leak into the JAX batch
+        return out
 
 
 def flatten_dict(tree: at.PyTree) -> dict:

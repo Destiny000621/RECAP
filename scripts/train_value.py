@@ -168,17 +168,53 @@ class RemapValueLabelKey(_transforms.DataTransformFn):
         return remapped
 
 
+@dataclasses.dataclass(frozen=True)
+class PerArmClsTarget(_transforms.DataTransformFn):
+    """Per-arm residual-labeler target: a masked two-hot over the C51 supports.
+
+    Reads `cls_value_{arm}` (0.0 positive / -1.0 negative, in [-1,0]) and
+    `cls_mask_{arm}` (1 = labeled rule-1/2 frame, 0 = `none`/excluded), and emits
+    `value` as a length-`num_bins` distribution. mask=0 -> an all-zero target, so
+    `compute_loss = -sum(target*log_probs)` is exactly 0 (no loss, no gradient) on
+    `none` frames — the dataset can stay whole; rule-3 frames simply don't train.
+    cls_value is 0.0/-1.0 (the support endpoints), so the two-hot is a one-hot at
+    the boundary bin. See scripts/prep_residual_training.py.
+    """
+
+    arm: str
+    target_key: str = "value"
+    num_bins: int = 201
+
+    def __call__(self, data: dict) -> dict:
+        vkey, mkey = f"cls_value_{self.arm}", f"cls_mask_{self.arm}"
+        if vkey not in data or mkey not in data:
+            raise KeyError(f"Missing {vkey}/{mkey} — run scripts/prep_residual_training.py first")
+        v = float(np.asarray(data[vkey]).reshape(-1)[0])  # in [-1, 0]
+        m = float(np.asarray(data[mkey]).reshape(-1)[0])
+        dist = np.zeros((self.num_bins,), dtype=np.float32)
+        if m > 0.0:
+            idx = int(round((float(np.clip(v, -1.0, 0.0)) + 1.0) * (self.num_bins - 1)))  # -1->0, 0->last
+            dist[idx] = 1.0
+        out = dict(data)
+        out[self.target_key] = dist
+        return out
+
+
 def build_value_data_config(
     local_data_dir: str,
     config: ValueModelConfig,
     *,
     tokenizer_path: str | None,
+    arm: str | None = None,
 ) -> _config.DataConfig:
     # DataConfig switched from `local_data_dir` to `repo_id`. Derive a
     # `local/<basename>` repo_id and rely on the lerobot cache symlink
     # (see docs/pi06_train_runbook.md prereqs) to resolve it back to the
     # original on-disk path.
     repo_id = f"local/{Path(local_data_dir).name}"
+    # `arm` set => per-arm residual labeler: target is the masked two-hot built
+    # from cls_value_{arm}/cls_mask_{arm}. Otherwise the standard value_label.
+    target_transform = PerArmClsTarget(arm) if arm else RemapValueLabelKey()
     return _config.DataConfig(
         repo_id=repo_id,
         prompt_from_task=True,
@@ -189,7 +225,7 @@ def build_value_data_config(
         # than the openpi default "actions" plural.)
         action_sequence_keys=(),
         data_transforms=_transforms.Group(
-            inputs=[RemapValueLabelKey(), value_policy.ValueInputs()],
+            inputs=[target_transform, value_policy.ValueInputs()],
         ),
         model_transforms=_transforms.Group(
             inputs=[
@@ -515,6 +551,9 @@ def main():
     parser.add_argument("--resume_from_checkpoint", type=str, default=None, help="从指定checkpoint恢复训练（例如：step_00001000）")
     parser.add_argument("--pyarrow_num_threads", type=int, default=0, help="PyArrow 读取并行线程数，0表示不设置")
     parser.add_argument("--tokenizer_path", type=str, default=None, help="可选的 Gemma3 tokenizer.model 本地路径")
+    parser.add_argument("--arm", type=str, default=None, choices=["left", "right"],
+                        help="Per-arm RESIDUAL labeler: train on cls_value_{arm}/cls_mask_{arm} "
+                             "(rule-1/2 hand labels) instead of value_label. Run once per arm.")
     parser.add_argument("--peak_lr", type=float, default=2.5e-5, help="学习率峰值")
     parser.add_argument("--decay_lr", type=float, default=2.5e-6, help="余弦衰减结束学习率")
     parser.add_argument("--warmup_steps", type=int, default=None, help="warmup 步数，默认取 min(1000, num_train_steps//10)")
@@ -637,6 +676,7 @@ def main():
         args.data_dir,
         config,
         tokenizer_path=resolved_tokenizer_path,
+        arm=args.arm,
     )
 
     data_loader = _data_loader.create_value_data_loader(
@@ -664,6 +704,7 @@ def main():
                 args.val_data_dir,
                 config,
                 tokenizer_path=resolved_tokenizer_path,
+                arm=args.arm,
             )
             val_dataset = _data_loader.create_torch_dataset(
                 val_data_config,
@@ -725,23 +766,14 @@ def main():
         train_state = load_checkpoint(checkpoint_path, train_state)
         logging.info(console.info(f"从 step {train_state.step} 继续训练"))
 
-    # 将模型参数分片到多GPU
-    if args.fsdp_devices > 1:
-        logging.info("\033[1;36m应用FSDP分片到模型参数...\033[0m")
-        with sharding.set_mesh(mesh):
-            train_state = jax.tree.map(
-                lambda x: sharding.apply_fsdp_sharding(mesh, x) if hasattr(x, 'shape') else x,
-                train_state,
-                is_leaf=lambda x: hasattr(x, 'shape')
-            )
-        logging.info("\033[1;32mFSDP分片完成\033[0m")
-    else:
-        # 单卡：复制到所有设备
-        train_state = jax.tree.map(
-            lambda x: jax.device_put(x, replicated_sharding), 
-            train_state,
-            is_leaf=lambda x: hasattr(x, 'shape')
-        )
+    # 数据并行：模型参数在所有设备上复制，数据batch沿 DATA_AXIS 分片
+    # （jit_train_step 的 in/out_shardings 全部为 replicated_sharding，
+    #  并行来自 data_sharding 对 batch 的切分，而非对参数做 FSDP 分片）
+    train_state = jax.tree.map(
+        lambda x: jax.device_put(x, replicated_sharding),
+        train_state,
+        is_leaf=lambda x: hasattr(x, 'shape')
+    )
 
     @functools.partial(
         jax.jit,

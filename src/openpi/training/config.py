@@ -266,10 +266,21 @@ class LeRobotAlohaDataConfig(DataConfigFactory):
     # Action keys that will be used to read the action sequence from the dataset.
     action_sequence_keys: Sequence[str] = ("action",)
 
+    # Flavor-A residual RECAP: when True, the actor target becomes
+    # (action - base_action) via SubtractBaseAction (run before AlohaInputs).
+    # Requires `base_action` in the repack (precompute it with
+    # scripts/precompute_base_action.py) and a re-run of compute_norm_stats.
+    # Default False => absolute-action baseline, byte-identical to before.
+    residual_base: bool = False
+
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        input_transforms: list[_transforms.DataTransformFn] = []
+        if self.residual_base:
+            input_transforms.append(_transforms.SubtractBaseAction())
+        input_transforms.append(aloha_policy.AlohaInputs(adapt_to_pi=self.adapt_to_pi))
         data_transforms = _transforms.Group(
-            inputs=[aloha_policy.AlohaInputs(adapt_to_pi=self.adapt_to_pi)],
+            inputs=input_transforms,
             outputs=[aloha_policy.AlohaOutputs(adapt_to_pi=self.adapt_to_pi)],
         )
         if self.use_delta_joint_actions:
@@ -1522,16 +1533,16 @@ _CONFIGS = [
     # pi06_yam_vial_30fps already uses.
     TrainConfig(
         name="pi06_yam_vial_30fps_from_sft_recap",
-        project_name="pistar",
+        project_name="recap",
         model=pi0_config.Pi0Config(pi05=True, pistar=True),
         data=LeRobotAlohaDataConfig(
-            repo_id="local/vial_rollout_v1_v21_vlm_label",   # ← Stage 5 output
+            repo_id="local/vials_recap_v1_1_v21_perarm",   # per-arm labeled (add_per_arm_labels + label_advantage_handcrafted)
             assets=AssetsConfig(
                 assets_dir="gs://openpi-assets/checkpoints/pi05_base/assets",
                 asset_id="trossen",
             ),
             adapt_to_pi=False,
-            default_prompt="Use one arm to grasp the papercup and hand it over to the other arm",
+            default_prompt="pick up all vials and place them in the stand",
             adv_ind_dropout=True,
             repack_transforms=_transforms.Group(
                 inputs=[
@@ -1544,31 +1555,99 @@ _CONFIGS = [
                             },
                             "state": "observation.state",
                             "actions": "action",
-                            "adv_ind": "adv_ind",
+                            # Per-arm RECAP columns (written by scripts/add_per_arm_labels.py
+                            # + scripts/label_advantage_handcrafted.py). Two adv tokens
+                            # replace the single adv_ind; loss masks zero the frozen arm.
+                            "adv_ind_left": "adv_ind_left",
+                            "adv_ind_right": "adv_ind_right",
+                            "loss_mask_left": "loss_mask_left",
+                            "loss_mask_right": "loss_mask_right",
                         }
                     )
                 ]
             ),
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader(
-            "/home/ssc/checkpoints/yam-vial-place-pi05-v1/params"
+            "/mnt/localssd/Sichang/openpi-checkpoints/pi05_yam_vial_4_30fps_aug/v1/10000/params"
         ),
-        num_train_steps=5_000,
-        batch_size=56,
+        num_train_steps=3_000,
+        batch_size=60,                 # 4×H200: 14/device, keeps the 8-GPU recipe's global batch
         num_workers=8,
+        checkpoint_base_dir="/mnt/localssd/Sichang/openpi-checkpoints",
+        assets_base_dir="/mnt/localssd/Sichang/openpi-assets",
     ),
+    # ---- Flavor-A RESIDUAL variant of pi06_yam_vial_30fps_from_sft_recap -------
+    # Identical to the absolute config EXCEPT: residual_base=True (actor target =
+    # action - base_action) and `base_action` mapped in the repack. Requires the
+    # dataset to carry `base_action` (scripts/precompute_base_action.py) and its
+    # OWN norm stats (compute_norm_stats --config-name this). Zero effect on the
+    # absolute baseline — it's a separate config.
     TrainConfig(
-        name="pi06_yam_vial_30fps_from_sft_recap_infer",
-        project_name="pistar",
+        name="pi06_yam_vial_30fps_from_sft_recap_residual",
+        project_name="recap",
         model=pi0_config.Pi0Config(pi05=True, pistar=True),
         data=LeRobotAlohaDataConfig(
-            repo_id="local/vial_rollout_v1_v21_vlm_label",
+            repo_id="local/vials_recap_v1_1_v21_perarm",   # per-arm labeled + base_action (precompute_base_action.py)
             assets=AssetsConfig(
                 assets_dir="gs://openpi-assets/checkpoints/pi05_base/assets",
                 asset_id="trossen",
             ),
             adapt_to_pi=False,
-            default_prompt="Use one arm to grasp the papercup and hand it over to the other arm",
+            default_prompt="pick up all vials and place them in the stand",
+            adv_ind_dropout=True,
+            residual_base=True,                         # actor learns action - base_action
+            # Residual is the correction to pi0.5's RAW output, so don't also delta
+            # against the state (DeltaActions would subtract state from the residual).
+            # The residual itself is the small/relative quantity. base_action is
+            # precomputed in raw action space; target = action - base directly.
+            use_delta_joint_actions=False,
+            repack_transforms=_transforms.Group(
+                inputs=[
+                    _transforms.RepackTransform(
+                        {
+                            "images": {
+                                "cam_high": "observation.images.head_camera",
+                                "cam_left_wrist": "observation.images.left_wrist_camera",
+                                "cam_right_wrist": "observation.images.right_wrist_camera",
+                            },
+                            "state": "observation.state",
+                            "actions": "action",
+                            "base_action": "base_action",   # precomputed pi0.5 base chunk
+                            "adv_ind_left": "adv_ind_left",
+                            "adv_ind_right": "adv_ind_right",
+                            "loss_mask_left": "loss_mask_left",
+                            "loss_mask_right": "loss_mask_right",
+                        }
+                    )
+                ]
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "/mnt/localssd/Sichang/openpi-checkpoints/pi05_yam_vial_4_30fps_aug/v1/10000/params"
+        ),
+        num_train_steps=3_000,
+        batch_size=120,
+        num_workers=8,
+        checkpoint_base_dir="/mnt/localssd/Sichang/openpi-checkpoints",
+        assets_base_dir="/mnt/localssd/Sichang/openpi-assets",
+    ),
+    # Serving/eval variant of pi06_yam_vial_30fps_from_sft_recap: identical in
+    # every way EXCEPT adv_ind_dropout=False, so the "Advantage: positive" tag is
+    # deterministically present on every inference step (no 30% random dropout).
+    # weight_loader is a placeholder — serve_policy uses --policy.dir to point at
+    # the trained recap checkpoint; norm stats come from the gs trossen assets.
+    TrainConfig(
+        name="pi06_yam_vial_30fps_from_sft_recap_infer",
+        project_name="recap",
+        model=pi0_config.Pi0Config(pi05=True, pistar=True),
+        data=LeRobotAlohaDataConfig(
+            repo_id="local/vials_recap_v1_v21_la25",   # ← Stage 5 output (under $HF_LEROBOT_HOME)
+            assets=AssetsConfig(
+                assets_dir="gs://openpi-assets/checkpoints/pi05_base/assets",
+                asset_id="trossen",
+            ),
+            adapt_to_pi=False,
+            default_prompt="pick up all vials and place them in the stand",
             adv_ind_dropout=False,                  # positive tag always present at serving
             repack_transforms=_transforms.Group(
                 inputs=[
@@ -1588,11 +1667,13 @@ _CONFIGS = [
             ),
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader(
-            "/home/ssc/checkpoints/yam-vial-place-pi05-v1/params"
+            "/mnt/localssd/Sichang/openpi-checkpoints/pi05_yam_vial_4_30fps_aug/v1/10000/params"
         ),
-        num_train_steps=5_000,
-        batch_size=56,
+        num_train_steps=3_000,
+        batch_size=60,
         num_workers=8,
+        checkpoint_base_dir="/mnt/localssd/Sichang/openpi-checkpoints",
+        assets_base_dir="/mnt/localssd/Sichang/openpi-assets",
     ),
     # --- end YAM bimanual PiStar configs -------------------------------------
 
